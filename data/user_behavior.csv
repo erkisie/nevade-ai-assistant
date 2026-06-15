@@ -1,0 +1,6 @@
+user_id,product_id,action
+1,1,favorite
+1,2,cart
+1,4,favorite
+1,5,view
+1,8,cart
