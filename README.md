@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Nevade AI Destekli Ürün Öneri ve Akıllı Alışveriş Asistanı
 
 Bu proje, Nevade.com ürün verilerini kullanarak kullanıcıların doğal dilde yazdığı ihtiyaçlara göre ürün önerileri sunan AI destekli bir ürün öneri sistemidir.
