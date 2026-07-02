@@ -1,101 +1,172 @@
-from sentence_transformers import SentenceTransformer, util
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:
+    SentenceTransformer = None
 
 
-MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+# =====================================================
+# SEMANTIC ENGINE
+# =====================================================
+
+MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+_model = None
 
 
-class SemanticProductSearch:
-    def __init__(self):
-        self.model = SentenceTransformer(MODEL_NAME)
+def get_model():
+    global _model
 
-    def prepare_product_text(self, df):
-        df = df.copy()
+    if SentenceTransformer is None:
+        return None
 
-        for col in [
-            "product_name",
-            "category",
-            "brand",
-            "description",
-            "stock_status",
-            "installment_available",
-            "price"
-        ]:
-            if col not in df.columns:
-                df[col] = ""
+    if _model is None:
+        _model = SentenceTransformer(MODEL_NAME)
 
-        df["semantic_text"] = (
-            "Ürün adı: " + df["product_name"].astype(str) + ". " +
-            "Kategori: " + df["category"].astype(str) + ". " +
-            "Marka: " + df["brand"].astype(str) + ". " +
-            "Fiyat: " + df["price"].astype(str) + " TL. " +
-            "Açıklama: " + df["description"].astype(str) + ". " +
-            "Stok durumu: " + df["stock_status"].astype(str) + ". " +
-            "Taksit uygunluğu: " + df["installment_available"].astype(str) + "."
-        )
+    return _model
 
-        return df
 
-    def calculate_business_scores(self, df):
-        df = df.copy()
+def safe_text(value):
+    if value is None:
+        return ""
 
-        df["price"] = df["price"].astype(float)
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
 
-        max_price = df["price"].max()
-        min_price = df["price"].min()
+    return str(value).strip()
 
-        if max_price == min_price:
-            df["price_score"] = 1
-        else:
-            df["price_score"] = 1 - (
-                (df["price"] - min_price) / (max_price - min_price)
-            )
 
-        df["stock_score"] = df["stock_status"].astype(str).str.lower().apply(
-            lambda value: 1 if value == "stokta" else 0
-        )
+def safe_number(value):
+    try:
+        if value is None or pd.isna(value):
+            return 0.0
 
-        df["installment_score"] = df["installment_available"].astype(str).str.lower().apply(
-            lambda value: 1 if value == "evet" else 0
-        )
+        if isinstance(value, (int, float)):
+            return float(value)
 
-        return df
+        text = str(value).replace("TL", "").replace("₺", "").replace("tl", "").strip()
 
-    def recommend(self, user_query, df, top_n=5):
-        df = self.prepare_product_text(df)
-        df = self.calculate_business_scores(df)
+        if text == "":
+            return 0.0
 
-        product_texts = df["semantic_text"].tolist()
+        if "," in text and "." in text:
+            text = text.replace(".", "").replace(",", ".")
+        elif "," in text:
+            text = text.replace(",", ".")
+        elif text.count(".") == 1:
+            left, right = text.split(".")
+            if len(right) == 3:
+                text = text.replace(".", "")
 
-        product_embeddings = self.model.encode(
-            product_texts,
-            convert_to_tensor=True,
-            normalize_embeddings=True
-        )
+        return float(text)
 
-        query_embedding = self.model.encode(
-            user_query,
-            convert_to_tensor=True,
-            normalize_embeddings=True
-        )
+    except Exception:
+        return 0.0
 
-        similarity_scores = util.cos_sim(
-            query_embedding,
-            product_embeddings
-        )[0]
 
-        df_result = df.copy()
-        df_result["semantic_score"] = similarity_scores.cpu().numpy()
+def build_product_semantic_text(row):
+    """
+    Ürün hakkında anlam çıkarılacak metni oluşturur.
+    Kullanıcı mesajı bu metinlerle anlamsal olarak kıyaslanır.
+    """
 
-        df_result["final_score"] = (
-            df_result["semantic_score"] * 0.70 +
-            df_result["price_score"] * 0.15 +
-            df_result["stock_score"] * 0.10 +
-            df_result["installment_score"] * 0.05
-        )
+    fields = [
+        "product_name",
+        "category",
+        "brand",
+        "product_type",
+        "description",
+        "features",
+        "use_case",
+        "payment_options",
+        "processor",
+        "ram",
+        "storage",
+        "capacity",
+        "energy_class",
+        "screen_size",
+        "warranty",
+    ]
 
-        df_result = df_result.sort_values(
-            by="final_score",
-            ascending=False
-        ).head(top_n)
+    parts = []
 
-        return df_result
+    for field in fields:
+        if field in row:
+            value = safe_text(row.get(field, ""))
+
+            if value:
+                parts.append(value)
+
+    return " ".join(parts)
+
+
+def add_semantic_scores(products_df, user_query):
+    """
+    Ürünlere semantic_score ekler.
+    Model çalışmazsa sistem bozulmaz, skor 0 döner.
+    """
+
+    if products_df is None or products_df.empty:
+        return products_df
+
+    scored_df = products_df.copy()
+
+    model = get_model()
+
+    if model is None:
+        scored_df["semantic_score"] = 0
+        return scored_df
+
+    product_texts = []
+
+    for _, row in scored_df.iterrows():
+        product_texts.append(build_product_semantic_text(row))
+
+    try:
+        product_embeddings = model.encode(product_texts, convert_to_numpy=True)
+        query_embedding = model.encode([user_query], convert_to_numpy=True)
+
+        similarities = cosine_similarity(product_embeddings, query_embedding).flatten()
+
+        scored_df["semantic_score"] = [
+            round(float(score) * 100, 2)
+            for score in similarities
+        ]
+
+    except Exception as e:
+        print("Semantic scoring error:", e)
+        scored_df["semantic_score"] = 0
+
+    return scored_df
+
+
+def apply_semantic_reranking(result_df, user_query):
+    """
+    Decision Engine güvenli ürünleri seçtikten sonra,
+    bu ürünleri semantic_score ile yeniden sıralar.
+    """
+
+    if result_df is None or result_df.empty:
+        return result_df
+
+    scored_df = add_semantic_scores(result_df, user_query)
+
+    if "score" not in scored_df.columns:
+        scored_df["score"] = 0
+
+    scored_df["final_ai_score"] = (
+        scored_df["score"].apply(safe_number) * 0.60
+        + scored_df["semantic_score"].apply(safe_number) * 0.40
+    )
+
+    scored_df = scored_df.sort_values(
+        ["final_ai_score", "price"],
+        ascending=[False, True],
+    )
+
+    return scored_df

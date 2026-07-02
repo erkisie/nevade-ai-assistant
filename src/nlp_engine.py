@@ -1,360 +1,416 @@
 import re
+import unicodedata
 
-from src.utils import normalize_text
 
+# =====================================================
+# TEXT NORMALIZATION
+# =====================================================
+
+def normalize_text(text):
+    if text is None:
+        return ""
+
+    text = str(text).lower().strip()
+
+    replacements = str.maketrans("çğıöşüâîû", "cgiosuaiu")
+    text = text.translate(replacements)
+
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("utf-8")
+
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
+
+# =====================================================
+# DICTIONARIES
+# =====================================================
 
 CATEGORY_KEYWORDS = {
     "Bilgisayar": [
-        "laptop", "bilgisayar", "notebook", "macbook", "dizustu", "dizüstü",
-        "ogrenci", "öğrenci", "okul", "ders", "ofis", "yazilim", "yazılım",
-        "oyun", "gaming", "islemci", "işlemci", "ram", "ssd", "depolama"
+        "laptop",
+        "bilgisayar",
+        "notebook",
+        "macbook",
+        "pc",
+        "dizustu",
     ],
+
     "Telefon": [
-        "telefon", "iphone", "samsung", "xiaomi", "oppo", "akilli telefon",
-        "akıllı telefon", "cep telefonu", "galaxy", "redmi", "kamera",
-        "batarya", "hafiza", "hafıza"
+        "telefon",
+        "iphone",
+        "samsung",
+        "xiaomi",
+        "redmi",
+        "galaxy",
+        "cep telefonu",
     ],
+
     "Beyaz Eşya": [
-        "buzdolabi", "buzdolabı", "dolap", "camasir", "çamaşır",
-        "camasir makinesi", "çamaşır makinesi", "beyaz esya", "beyaz eşya",
-        "enerji", "kapasite", "hacim", "litre", "lt", "kg",
-        "ceyiz", "çeyiz", "evlilik", "ev kuruyorum"
+        "beyaz esya",
+        "buzdolabi",
+        "buz dolabi",
+        "camasir",
+        "camasir makinesi",
+        "bulasik",
+        "bulasik makinesi",
+        "firin",
+        "ankastre",
+        "mini firin",
+        "ceyiz",
     ],
-    "Ev Elektroniği": [
-        "supurge", "süpürge", "robot supurge", "robot süpürge", "airfryer",
-        "fritoz", "fritöz", "kahve makinesi", "dyson", "philips",
-        "temizlik", "ev aleti", "mutfak"
-    ],
+
     "Televizyon": [
-        "televizyon", "tv", "oled", "4k", "akilli tv", "akıllı tv",
-        "ekran", "sinema", "salon", "film"
-    ]
+        "televizyon",
+        "tv",
+        "smart tv",
+        "oled",
+        "4k",
+        "ekran",
+    ],
+
+    "Küçük Ev Aleti": [
+        "blender",
+        "cay makinesi",
+        "tost makinesi",
+        "supurge",
+        "robot supurge",
+        "airfryer",
+        "kahve makinesi",
+        "utu",
+        "mutfak",
+    ],
 }
 
 
 PRODUCT_TYPE_KEYWORDS = {
-    "buzdolabi": [
-        "buzdolabi", "buzdolabı", "dolap", "fridge", "sogutucu", "soğutucu"
-    ],
-    "camasir_makinesi": [
-        "camasir makinesi", "çamaşır makinesi", "camasir", "çamaşır",
-        "yikama", "yıkama"
-    ],
     "laptop": [
-        "laptop", "bilgisayar", "notebook", "macbook", "dizustu", "dizüstü"
+        "laptop",
+        "bilgisayar",
+        "notebook",
+        "macbook",
+        "dizustu",
     ],
+
     "telefon": [
-        "telefon", "iphone", "galaxy", "redmi", "cep telefonu", "akilli telefon", "akıllı telefon"
+        "telefon",
+        "iphone",
+        "galaxy",
+        "redmi",
+        "xiaomi",
+        "cep telefonu",
     ],
-    "supurge": [
-        "supurge", "süpürge", "robot supurge", "robot süpürge", "dyson"
+
+    "buzdolabi": [
+        "buzdolabi",
+        "buz dolabi",
+        "no frost",
+        "sogutucu",
     ],
+
+    "camasir_makinesi": [
+        "camasir",
+        "camasir makinesi",
+        "yikama",
+    ],
+
+    "bulasik_makinesi": [
+        "bulasik",
+        "bulasik makinesi",
+    ],
+
+    "firin": [
+        "firin",
+        "ankastre",
+        "ankastre firin",
+        "mini firin",
+        "elektrikli firin",
+    ],
+
     "televizyon": [
-        "televizyon", "tv", "oled", "4k", "akilli tv", "akıllı tv"
+        "televizyon",
+        "tv",
+        "smart tv",
+        "oled",
+        "4k",
     ],
-    "airfryer": [
-        "airfryer", "fritoz", "fritöz"
+
+    "supurge": [
+        "supurge",
+        "robot supurge",
+        "dyson",
+        "philips supurge",
     ],
-    "kahve_makinesi": [
-        "kahve makinesi", "kahve"
-    ]
+
+    "blender": [
+        "blender",
+        "blender seti",
+    ],
+
+    "cay_makinesi": [
+        "cay makinesi",
+        "cayci",
+    ],
+
+    "tost_makinesi": [
+        "tost makinesi",
+        "tost",
+    ],
+
+    "utu": [
+        "utu",
+        "buharli utu",
+    ],
+}
+
+
+PRODUCT_TYPE_LABELS = {
+    "laptop": "laptop",
+    "telefon": "telefon",
+    "buzdolabi": "buzdolabı",
+    "camasir_makinesi": "çamaşır makinesi",
+    "bulasik_makinesi": "bulaşık makinesi",
+    "firin": "fırın",
+    "televizyon": "televizyon",
+    "supurge": "süpürge",
+    "blender": "blender",
+    "cay_makinesi": "çay makinesi",
+    "tost_makinesi": "tost makinesi",
+    "utu": "ütü",
 }
 
 
 BRAND_ALIASES = {
-    "macbook": "apple",
-    "iphone": "apple",
-    "ios": "apple",
-    "galaxy": "samsung",
-    "redmi": "xiaomi",
-    "mi telefon": "xiaomi",
-    "ideapad": "lenovo",
-    "idea pad": "lenovo",
-    "vivobook": "asus",
-    "victus": "hp",
-    "pavilion": "hp"
-}
+    "apple": "Apple",
+    "iphone": "Apple",
+    "macbook": "Apple",
 
+    "samsung": "Samsung",
+    "galaxy": "Samsung",
 
-KNOWN_BRANDS = [
-    "lenovo", "hp", "apple", "asus", "acer", "dell",
-    "samsung", "xiaomi", "oppo", "philips", "dyson",
-    "tefal", "karaca", "beko", "arcelik", "arçelik",
-    "siemens", "bosch", "lg", "tcl"
-]
+    "xiaomi": "Xiaomi",
+    "redmi": "Xiaomi",
 
+    "lenovo": "Lenovo",
+    "lenova": "Lenovo",
+    "ideapad": "Lenovo",
 
-INTENT_KEYWORDS = {
-    "student_laptop": [
-        "ogrenci laptop", "öğrenci laptop", "ogrenci bilgisayar", "öğrenci bilgisayar",
-        "okul icin laptop", "okul için laptop", "ders icin laptop", "ders için laptop",
-        "ogrenci dostu", "öğrenci dostu"
-    ],
-    "bundle_recommendation": [
-        "ceyiz", "çeyiz", "ev kuruyorum", "evlenecegim", "evleneceğim",
-        "evlilik", "ev alisverisi", "ev alışverişi", "ceyiz alisverisi",
-        "çeyiz alışverişi", "set oner", "set öner"
-    ],
-    "comparison": [
-        "karsilastir", "karşılaştır", "kiyasla", "kıyasla", "hangisi",
-        "daha iyi", "daha mantikli", "daha mantıklı", "daha avantajli",
-        "daha avantajlı", "vs", "mi yoksa"
-    ],
-    "similar": [
-        "benzer", "alternatif", "buna benzer", "daha uygun alternatif",
-        "muadili", "yerine ne alabilirim"
-    ],
-    "recommendation": [
-        "oner", "öner", "listele", "istiyorum", "ariyorum", "arıyorum",
-        "alacagim", "alacağım", "tavsiye", "secenek", "seçenek", "bul"
-    ]
-}
+    "beko": "Beko",
+    "arcelik": "Arçelik",
+    "arcelik": "Arçelik",
+    "vestel": "Vestel",
+    "bosch": "Bosch",
+    "siemens": "Siemens",
 
-
-PRIORITY_KEYWORDS = {
-    "payment": [
-        "senet", "senetle", "havale", "pesin", "peşin", "nakit",
-        "kart", "kredi karti", "kredi kartı", "taksit", "odeme", "ödeme",
-        "aylik", "aylık", "vade", "vadesiz", "toplam ödeme"
-    ],
-    "price": [
-        "fiyat", "ucuz", "uygun", "uyguna", "ekonomik", "butce", "bütçe",
-        "butce dostu", "bütçe dostu", "en hesapli", "en hesaplı", "indirimli"
-    ],
-    "capacity": [
-        "kapasite", "capacity", "hacim", "litre", "lt", "kg", "genis", "geniş",
-        "buyuk", "büyük", "aile icin", "aile için"
-    ],
-    "energy": [
-        "enerji", "a+", "a++", "a+++", "tasarruf", "az yakar", "verimli",
-        "enerji sinifi", "enerji sınıfı"
-    ],
-    "performance": [
-        "performans", "islemci", "işlemci", "processor", "ram", "ssd",
-        "depolama", "storage", "hizli", "hızlı", "oyun", "gaming",
-        "yazilim", "yazılım", "tasarim", "tasarım"
-    ],
-    "usage": [
-        "kullanim kolayligi", "kullanım kolaylığı", "kullanim", "kullanım",
-        "kolay", "pratik", "gunluk", "günlük", "aile", "ceyiz", "çeyiz",
-        "ofis", "ogrenci", "öğrenci", "hafif", "sessiz"
-    ]
+    "philips": "Philips",
+    "fakir": "Fakir",
+    "arzum": "Arzum",
+    "tefal": "Tefal",
 }
 
 
 PAYMENT_KEYWORDS = {
-    "senet": ["senet", "senetle", "senetli"],
-    "bank_transfer": ["havale", "eft", "banka transferi"],
-    "cash": ["pesin", "peşin", "nakit"],
-    "card": ["kart", "kredi karti", "kredi kartı"],
-    "installment_9": ["9 taksit", "dokuz taksit"],
-    "installment_6": ["6 taksit", "alti taksit", "altı taksit"],
-    "installment_3": ["3 taksit", "uc taksit", "üç taksit"],
-    "installment": ["taksit", "aylik", "aylık", "vade"]
+    "senet": [
+        "senet",
+        "senetli",
+        "senetle",
+        "elden odeme",
+    ],
+
+    "havale": [
+        "havale",
+        "eft",
+    ],
+
+    "taksit": [
+        "taksit",
+        "aylik",
+        "aylik odeme",
+    ],
+
+    "pesin": [
+        "pesin",
+        "nakit",
+    ],
+
+    "kart": [
+        "kart",
+        "kredi karti",
+    ],
 }
 
 
-class NLPQueryEngine:
-    def extract_budget(self, user_query):
-        query = normalize_text(user_query)
+PACKAGE_KEYWORDS = [
+    "paket",
+    "paketi",
+    "set",
+    "seti",
+    "kombin",
+    "kombin yap",
+    "ceyiz paketi",
+    "ceyiz seti",
+    "alisveris listesi",
+]
 
-        # 50 bin, 50k, 50.000, 50000 TL gibi ifadeleri yakalar
-        match = re.search(r"(\d+)\s*(bin|k)", query)
-        if match:
-            return int(match.group(1)) * 1000
 
-        numbers = re.findall(r"\d[\d\.\,]*", query)
+# =====================================================
+# EXTRACTION FUNCTIONS
+# =====================================================
 
-        if not numbers:
-            return None
+def extract_budget(query):
+    q = normalize_text(query)
 
-        raw = numbers[0]
-        cleaned = raw.replace(".", "").replace(",", "")
+    match = re.search(r"(\d+)\s*(bin|k)", q)
+    if match:
+        return int(match.group(1)) * 1000
 
-        try:
-            value = int(cleaned)
-        except Exception:
-            return None
+    numbers = re.findall(r"\d[\d\.\,]*", q)
 
-        if value < 1000 and ("bin" in query or "k" in query):
-            return value * 1000
-
-        return value
-
-    def detect_category(self, user_query):
-        query = normalize_text(user_query)
-        scores = {}
-
-        for category, keywords in CATEGORY_KEYWORDS.items():
-            score = 0
-
-            for keyword in keywords:
-                keyword_norm = normalize_text(keyword)
-
-                if keyword_norm in query:
-                    score += 2
-
-            scores[category] = score
-
-        best_category = max(scores, key=scores.get)
-
-        if scores[best_category] == 0:
-            return None
-
-        return best_category
-
-    def detect_product_type(self, user_query):
-        query = normalize_text(user_query)
-
-        type_scores = {}
-
-        for product_type, keywords in PRODUCT_TYPE_KEYWORDS.items():
-            score = 0
-
-            for keyword in keywords:
-                keyword_norm = normalize_text(keyword)
-
-                if keyword_norm in query:
-                    score += 3
-
-            type_scores[product_type] = score
-
-        best_type = max(type_scores, key=type_scores.get)
-
-        if type_scores[best_type] == 0:
-            return None
-
-        return best_type
-
-    def detect_brands(self, user_query):
-        query = normalize_text(user_query)
-        brands = []
-
-        for alias, brand in BRAND_ALIASES.items():
-            if normalize_text(alias) in query:
-                normalized_brand = normalize_text(brand)
-
-                if normalized_brand not in brands:
-                    brands.append(normalized_brand)
-
-        for brand in KNOWN_BRANDS:
-            normalized_brand = normalize_text(brand)
-
-            if normalized_brand in query:
-                if normalized_brand not in brands:
-                    brands.append(normalized_brand)
-
-        return brands
-
-    def detect_payment_preference(self, user_query):
-        query = normalize_text(user_query)
-
-        for payment_type, keywords in PAYMENT_KEYWORDS.items():
-            for keyword in keywords:
-                if normalize_text(keyword) in query:
-                    return payment_type
-
+    if not numbers:
         return None
 
-    def detect_priority(self, user_query):
-        query = normalize_text(user_query)
+    raw = numbers[0].replace(".", "").replace(",", "")
 
-        payment_preference = self.detect_payment_preference(query)
+    try:
+        value = int(raw)
+    except Exception:
+        return None
 
-        if payment_preference:
-            return "payment"
+    if value < 1000:
+        return None
 
-        scores = {}
+    return value
 
-        for priority, keywords in PRIORITY_KEYWORDS.items():
-            score = 0
 
-            for keyword in keywords:
-                keyword_norm = normalize_text(keyword)
+def extract_category(q):
+    for category, keywords in CATEGORY_KEYWORDS.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in q:
+                return category
 
-                if keyword_norm in query:
-                    score += 2
+    return None
 
-            scores[priority] = score
 
-        best_priority = max(scores, key=scores.get)
+def extract_product_type(q):
+    for product_type, keywords in PRODUCT_TYPE_KEYWORDS.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in q:
+                return product_type
 
-        if scores[best_priority] == 0:
-            return "balanced"
+    return None
 
-        return best_priority
 
-    def detect_intent(self, user_query):
-        query = normalize_text(user_query)
-        scores = {}
+def extract_brand(q):
+    for alias, brand in BRAND_ALIASES.items():
+        if normalize_text(alias) in q:
+            return brand
 
-        for intent, keywords in INTENT_KEYWORDS.items():
-            score = 0
+    return None
 
-            for keyword in keywords:
-                if normalize_text(keyword) in query:
-                    score += 2
 
-            scores[intent] = score
+def extract_payments(q):
+    payments = []
 
-        # Ürün önerme cümlelerinde intent recommendation olarak kalsın
-        if any(word in query for word in ["oner", "öner", "tavsiye", "bul", "ariyorum", "arıyorum"]):
-            scores["recommendation"] += 1
+    for payment, keywords in PAYMENT_KEYWORDS.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in q:
+                payments.append(payment)
+                break
 
-        best_intent = max(scores, key=scores.get)
+    return list(set(payments))
 
-        if scores[best_intent] == 0:
-            return "recommendation"
 
-        return best_intent
+def is_package_query(q):
+    return any(normalize_text(word) in q for word in PACKAGE_KEYWORDS)
 
-    def detect_user_profile(self, user_query):
-        query = normalize_text(user_query)
 
-        profiles = []
+# =====================================================
+# MAIN ANALYSIS
+# =====================================================
 
-        if any(word in query for word in ["ogrenci", "öğrenci", "okul", "ders"]):
-            profiles.append("öğrenci")
+def analyze_query(query):
+    q = normalize_text(query)
 
-        if any(word in query for word in ["aile", "cocuklu", "çocuklu", "ev"]):
-            profiles.append("aile")
+    product_type = extract_product_type(q)
+    category = extract_category(q)
 
-        if any(word in query for word in ["ceyiz", "çeyiz", "evlilik", "evlenecegim", "evleneceğim"]):
-            profiles.append("çeyiz")
+    if category is None:
+        if product_type in ["buzdolabi", "camasir_makinesi", "bulasik_makinesi", "firin"]:
+            category = "Beyaz Eşya"
 
-        if any(word in query for word in ["oyun", "gaming"]):
-            profiles.append("oyun")
+        elif product_type in ["blender", "cay_makinesi", "tost_makinesi", "supurge", "utu"]:
+            category = "Küçük Ev Aleti"
 
-        if any(word in query for word in ["ofis", "is", "iş", "calisma", "çalışma"]):
-            profiles.append("ofis")
+        elif product_type == "laptop":
+            category = "Bilgisayar"
 
-        return profiles
+        elif product_type == "telefon":
+            category = "Telefon"
 
-    def understand(self, user_query):
-        product_type = self.detect_product_type(user_query)
-        category = self.detect_category(user_query)
+        elif product_type == "televizyon":
+            category = "Televizyon"
 
-        # Product type kategoriye göre daha spesifik olduğu için kategori boşsa tamamla
-        if category is None:
-            if product_type in ["buzdolabi", "camasir_makinesi"]:
-                category = "Beyaz Eşya"
-            elif product_type == "laptop":
-                category = "Bilgisayar"
-            elif product_type == "telefon":
-                category = "Telefon"
-            elif product_type in ["supurge", "airfryer", "kahve_makinesi"]:
-                category = "Ev Elektroniği"
-            elif product_type == "televizyon":
-                category = "Televizyon"
+    budget = extract_budget(query)
+    brand = extract_brand(q)
+    payments = extract_payments(q)
+    package = is_package_query(q)
 
-        return {
-            "original_query": user_query,
-            "intent": self.detect_intent(user_query),
-            "category": category,
-            "product_type": product_type,
-            "budget": self.extract_budget(user_query),
-            "brands": self.detect_brands(user_query),
-            "payment_preference": self.detect_payment_preference(user_query),
-            "priority": self.detect_priority(user_query),
-            "user_profile": self.detect_user_profile(user_query)
-        }
+    return {
+        "original_query": query,
+        "normalized_query": q,
+        "intent": "product_search",
+        "category": category,
+        "product_type": product_type,
+        "product_type_label": PRODUCT_TYPE_LABELS.get(product_type),
+        "brand": brand,
+        "budget": budget,
+        "payments": payments,
+        "is_package": package,
+    }
+
+
+# =====================================================
+# QUERY CLASSIFICATION
+# =====================================================
+
+def is_category_only_query(query_info):
+    q = query_info.get("normalized_query", "")
+    words = q.split()
+
+    has_category = query_info.get("category") is not None
+    has_product_type = query_info.get("product_type") is not None
+    has_budget = query_info.get("budget") is not None
+    has_brand = query_info.get("brand") is not None
+    has_payment = len(query_info.get("payments", [])) > 0
+    is_package = query_info.get("is_package", False)
+
+    if not has_category:
+        return False
+
+    if has_product_type or has_budget or has_brand or has_payment or is_package:
+        return False
+
+    if len(words) <= 3:
+        return True
+
+    return False
+
+
+def is_budget_only_query(query_info):
+    has_budget = query_info.get("budget") is not None
+    has_category = query_info.get("category") is not None
+    has_product_type = query_info.get("product_type") is not None
+    has_brand = query_info.get("brand") is not None
+    has_payment = len(query_info.get("payments", [])) > 0
+    is_package = query_info.get("is_package", False)
+
+    return (
+        has_budget
+        and not has_category
+        and not has_product_type
+        and not has_brand
+        and not has_payment
+        and not is_package
+    )

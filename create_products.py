@@ -1,811 +1,346 @@
 import os
+import random
 import pandas as pd
+from urllib.parse import quote_plus
+
 
 os.makedirs("data", exist_ok=True)
+random.seed(42)
 
-products = [
-    # =========================
-    # BİLGİSAYAR / LAPTOP
-    # =========================
-    {
-        "product_id": 1,
-        "product_name": "Lenovo IdeaPad 3 Laptop",
-        "category": "Bilgisayar",
-        "brand": "Lenovo",
-        "price": 18500,
-        "cash_price": 18000,
-        "bank_transfer_price": 17650,
-        "card_price": 18500,
-        "installment_3_total": 18500,
-        "installment_6_total": 18500,
-        "installment_9_total": 19800,
-        "senet_total_price": 22500,
-        "senet_monthly_9": 2500,
-        "color": "Gri",
-        "processor": "Intel Core i5",
-        "ram": "8 GB",
-        "storage": "512 GB SSD",
-        "screen_size": "15.6 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, 3 taksit, 6 taksit, 9 taksit, senet",
-        "use_case": "Öğrenci, okul, günlük kullanım, ofis",
-        "features": "Taşınabilir, uygun fiyatlı, SSD depolama, günlük kullanım için yeterli performans",
-        "description": "Öğrenci ve günlük kullanım için uygun fiyatlı Lenovo laptop.",
-        "product_link": "https://www.nevade.com/lenovo-ideapad-3",
-        "image_link": ""
-    },
-    {
-        "product_id": 2,
-        "product_name": "HP Pavilion Laptop",
-        "category": "Bilgisayar",
-        "brand": "HP",
-        "price": 24500,
-        "cash_price": 23800,
-        "bank_transfer_price": 23200,
-        "card_price": 24500,
-        "installment_3_total": 24500,
-        "installment_6_total": 24500,
-        "installment_9_total": 26200,
-        "senet_total_price": 29500,
-        "senet_monthly_9": 3278,
-        "color": "Gümüş",
-        "processor": "Intel Core i5",
-        "ram": "16 GB",
-        "storage": "512 GB SSD",
-        "screen_size": "15.6 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Öğrenci, ofis, yazılım, günlük kullanım",
-        "features": "16 GB RAM, hızlı SSD, ofis ve okul için güçlü performans",
-        "description": "Ders, ofis ve günlük kullanım için dengeli performans sunan HP laptop.",
-        "product_link": "https://www.nevade.com/hp-pavilion-laptop",
-        "image_link": ""
-    },
-    {
-        "product_id": 3,
-        "product_name": "Apple MacBook Air M2",
-        "category": "Bilgisayar",
-        "brand": "Apple",
-        "price": 42900,
-        "cash_price": 41900,
-        "bank_transfer_price": 41000,
-        "card_price": 42900,
-        "installment_3_total": 42900,
-        "installment_6_total": 42900,
-        "installment_9_total": 45900,
-        "senet_total_price": 50500,
-        "senet_monthly_9": 5611,
-        "color": "Uzay Grisi",
-        "processor": "Apple M2",
-        "ram": "8 GB",
-        "storage": "256 GB SSD",
-        "screen_size": "13.6 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Öğrenci, ofis, tasarım, taşınabilir kullanım",
-        "features": "Hafif, uzun pil ömrü, güçlü M2 işlemci, premium kullanım",
-        "description": "Taşınabilirlik ve uzun pil ömrü isteyen öğrenciler ve profesyoneller için MacBook Air.",
-        "product_link": "https://www.nevade.com/macbook-air-m2",
-        "image_link": ""
-    },
-    {
-        "product_id": 4,
-        "product_name": "Asus VivoBook 15 Laptop",
-        "category": "Bilgisayar",
-        "brand": "Asus",
-        "price": 21900,
-        "cash_price": 21300,
-        "bank_transfer_price": 20800,
-        "card_price": 21900,
-        "installment_3_total": 21900,
-        "installment_6_total": 21900,
-        "installment_9_total": 23500,
-        "senet_total_price": 26800,
-        "senet_monthly_9": 2978,
-        "color": "Mavi",
-        "processor": "AMD Ryzen 5",
-        "ram": "8 GB",
-        "storage": "512 GB SSD",
-        "screen_size": "15.6 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Öğrenci, ofis, günlük kullanım",
-        "features": "Ryzen işlemci, SSD, uygun fiyatlı, taşınabilir",
-        "description": "Okul ve ofis işleri için fiyat performans odaklı Asus laptop.",
-        "product_link": "https://www.nevade.com/asus-vivobook-15",
-        "image_link": ""
-    },
-    {
-        "product_id": 5,
-        "product_name": "HP Victus Gaming Laptop",
-        "category": "Bilgisayar",
-        "brand": "HP",
-        "price": 38900,
-        "cash_price": 37900,
-        "bank_transfer_price": 36900,
-        "card_price": 38900,
-        "installment_3_total": 38900,
-        "installment_6_total": 38900,
-        "installment_9_total": 41900,
-        "senet_total_price": 46500,
-        "senet_monthly_9": 5167,
-        "color": "Siyah",
-        "processor": "Intel Core i7",
-        "ram": "16 GB",
-        "storage": "1 TB SSD",
-        "screen_size": "16.1 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Oyun, yazılım, performans, tasarım",
-        "features": "Güçlü işlemci, 16 GB RAM, 1 TB SSD, yüksek performans",
-        "description": "Oyun ve performans isteyen kullanıcılar için güçlü HP Victus laptop.",
-        "product_link": "https://www.nevade.com/hp-victus-gaming",
-        "image_link": ""
-    },
 
-    # =========================
-    # TELEFON
-    # =========================
-    {
-        "product_id": 6,
-        "product_name": "Samsung Galaxy A55 Telefon",
-        "category": "Telefon",
-        "brand": "Samsung",
-        "price": 18900,
-        "cash_price": 18400,
-        "bank_transfer_price": 17900,
-        "card_price": 18900,
-        "installment_3_total": 18900,
-        "installment_6_total": 18900,
-        "installment_9_total": 20200,
-        "senet_total_price": 22800,
-        "senet_monthly_9": 2533,
-        "color": "Lacivert",
-        "processor": "Exynos",
-        "ram": "8 GB",
-        "storage": "256 GB",
-        "screen_size": "6.6 inç",
-        "energy_class": "",
-        "capacity": "5000 mAh",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Günlük kullanım, fotoğraf, sosyal medya",
-        "features": "Geniş ekran, iyi kamera, güçlü batarya",
-        "description": "Günlük kullanım ve kamera performansı için dengeli Samsung telefon.",
-        "product_link": "https://www.nevade.com/samsung-galaxy-a55",
-        "image_link": ""
-    },
-    {
-        "product_id": 7,
-        "product_name": "Apple iPhone 15",
-        "category": "Telefon",
-        "brand": "Apple",
-        "price": 52900,
-        "cash_price": 51500,
-        "bank_transfer_price": 50500,
-        "card_price": 52900,
-        "installment_3_total": 52900,
-        "installment_6_total": 52900,
-        "installment_9_total": 56500,
-        "senet_total_price": 62500,
-        "senet_monthly_9": 6944,
-        "color": "Siyah",
-        "processor": "A16 Bionic",
-        "ram": "",
-        "storage": "128 GB",
-        "screen_size": "6.1 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Premium telefon, kamera, günlük kullanım, Apple ekosistemi",
-        "features": "iOS, güçlü kamera, uzun kullanım ömrü, premium deneyim",
-        "description": "Apple ekosistemi ve güçlü kamera isteyen kullanıcılar için iPhone 15.",
-        "product_link": "https://www.nevade.com/iphone-15",
-        "image_link": ""
-    },
-    {
-        "product_id": 8,
-        "product_name": "Xiaomi Redmi Note 13",
-        "category": "Telefon",
-        "brand": "Xiaomi",
-        "price": 12900,
-        "cash_price": 12500,
-        "bank_transfer_price": 12100,
-        "card_price": 12900,
-        "installment_3_total": 12900,
-        "installment_6_total": 12900,
-        "installment_9_total": 13900,
-        "senet_total_price": 15800,
-        "senet_monthly_9": 1756,
-        "color": "Yeşil",
-        "processor": "Snapdragon",
-        "ram": "8 GB",
-        "storage": "256 GB",
-        "screen_size": "6.67 inç",
-        "energy_class": "",
-        "capacity": "5000 mAh",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Uygun fiyatlı telefon, günlük kullanım, sosyal medya",
-        "features": "Büyük ekran, yüksek depolama, uygun fiyat",
-        "description": "Bütçe dostu ve yüksek depolamalı Xiaomi telefon.",
-        "product_link": "https://www.nevade.com/xiaomi-redmi-note-13",
-        "image_link": ""
-    },
-    {
-        "product_id": 9,
-        "product_name": "Apple iPhone 13",
-        "category": "Telefon",
-        "brand": "Apple",
-        "price": 34900,
-        "cash_price": 33900,
-        "bank_transfer_price": 33200,
-        "card_price": 34900,
-        "installment_3_total": 34900,
-        "installment_6_total": 34900,
-        "installment_9_total": 37400,
-        "senet_total_price": 41800,
-        "senet_monthly_9": 4644,
-        "color": "Mavi",
-        "processor": "A15 Bionic",
-        "ram": "",
-        "storage": "128 GB",
-        "screen_size": "6.1 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Apple telefon, günlük kullanım, kamera, uygun fiyatlı iPhone",
-        "features": "iOS, güçlü kamera, 128 GB depolama, iPhone 15'e göre daha uygun fiyat",
-        "description": "Apple ekosistemine daha uygun fiyatla girmek isteyen kullanıcılar için iPhone 13.",
-        "product_link": "https://www.nevade.com/iphone-13",
-        "image_link": ""
-    },
-    {
-        "product_id": 10,
-        "product_name": "Apple iPhone 14",
-        "category": "Telefon",
-        "brand": "Apple",
-        "price": 42900,
-        "cash_price": 41900,
-        "bank_transfer_price": 41000,
-        "card_price": 42900,
-        "installment_3_total": 42900,
-        "installment_6_total": 42900,
-        "installment_9_total": 45900,
-        "senet_total_price": 50800,
-        "senet_monthly_9": 5644,
-        "color": "Mor",
-        "processor": "A15 Bionic",
-        "ram": "",
-        "storage": "128 GB",
-        "screen_size": "6.1 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Apple telefon, kamera, günlük kullanım, uzun ömürlü telefon",
-        "features": "iOS, güçlü kamera, 128 GB depolama, iPhone 15'e yakın deneyim",
-        "description": "iPhone 15'e göre daha uygun fiyatlı ama güçlü Apple telefon alternatifi.",
-        "product_link": "https://www.nevade.com/iphone-14",
-        "image_link": ""
-    },
-    {
-        "product_id": 11,
-        "product_name": "Apple iPhone 15 Pro",
-        "category": "Telefon",
-        "brand": "Apple",
-        "price": 68900,
-        "cash_price": 67500,
-        "bank_transfer_price": 66000,
-        "card_price": 68900,
-        "installment_3_total": 68900,
-        "installment_6_total": 68900,
-        "installment_9_total": 73800,
-        "senet_total_price": 81500,
-        "senet_monthly_9": 9056,
-        "color": "Titanyum",
-        "processor": "A17 Pro",
-        "ram": "",
-        "storage": "256 GB",
-        "screen_size": "6.1 inç",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Premium Apple telefon, kamera, performans, profesyonel kullanım",
-        "features": "A17 Pro işlemci, 256 GB depolama, güçlü kamera, premium Apple deneyimi",
-        "description": "Yüksek performans ve premium kamera isteyen kullanıcılar için iPhone 15 Pro.",
-        "product_link": "https://www.nevade.com/iphone-15-pro",
-        "image_link": ""
-    },
+def image_url(query, lock_id):
+    """
+    Demo amaçlı kategori görseli üretir.
+    Gerçek ürün fotoğrafı değildir.
+    """
+    q = quote_plus(query)
+    return f"https://loremflickr.com/640/480/{q}?lock={lock_id}"
 
-    # =========================
-    # BUZDOLABI
-    # =========================
-    {
-        "product_id": 12,
-        "product_name": "Beko Buzdolabı",
-        "category": "Beyaz Eşya",
-        "brand": "Beko",
-        "price": 24000,
-        "cash_price": 23500,
-        "bank_transfer_price": 22900,
-        "card_price": 24000,
-        "installment_3_total": 24000,
-        "installment_6_total": 24000,
-        "installment_9_total": 25800,
-        "senet_total_price": 30500,
-        "senet_monthly_9": 3389,
-        "color": "Beyaz",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A+",
-        "capacity": "514 L",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Aile, günlük kullanım, uygun fiyatlı beyaz eşya",
-        "features": "Geniş iç hacim, uygun fiyat, temel aile kullanımı",
-        "description": "Uygun fiyatlı ve aile kullanımı için yeterli kapasiteye sahip Beko buzdolabı.",
-        "product_link": "https://www.nevade.com/beko-buzdolabi",
-        "image_link": ""
-    },
-    {
-        "product_id": 13,
-        "product_name": "Arçelik Buzdolabı",
-        "category": "Beyaz Eşya",
-        "brand": "Arçelik",
-        "price": 36500,
-        "cash_price": 35500,
-        "bank_transfer_price": 34800,
-        "card_price": 36500,
-        "installment_3_total": 36500,
-        "installment_6_total": 36500,
-        "installment_9_total": 38900,
-        "senet_total_price": 43800,
-        "senet_monthly_9": 4867,
-        "color": "Inox",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A++",
-        "capacity": "560 L",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Aile, çeyiz, uzun vadeli kullanım",
-        "features": "Daha yüksek kapasite, enerji tasarrufu, inox tasarım, geniş iç hacim",
-        "description": "Çeyiz ve uzun vadeli aile kullanımı için güçlü Arçelik buzdolabı.",
-        "product_link": "https://www.nevade.com/arcelik-buzdolabi",
-        "image_link": ""
-    },
-    {
-        "product_id": 14,
-        "product_name": "Siemens Buzdolabı",
-        "category": "Beyaz Eşya",
-        "brand": "Siemens",
-        "price": 48900,
-        "cash_price": 47500,
-        "bank_transfer_price": 46500,
-        "card_price": 48900,
-        "installment_3_total": 48900,
-        "installment_6_total": 48900,
-        "installment_9_total": 52500,
-        "senet_total_price": 58500,
-        "senet_monthly_9": 6500,
-        "color": "Inox",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A+++",
-        "capacity": "580 L",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Premium aile kullanımı, enerji tasarrufu, geniş kapasite",
-        "features": "Yüksek enerji verimliliği, premium tasarım, geniş hacim",
-        "description": "Enerji verimliliği ve premium kullanım isteyen aileler için Siemens buzdolabı.",
-        "product_link": "https://www.nevade.com/siemens-buzdolabi",
-        "image_link": ""
-    },
-    {
-        "product_id": 15,
-        "product_name": "Bosch Buzdolabı",
-        "category": "Beyaz Eşya",
-        "brand": "Bosch",
-        "price": 41500,
-        "cash_price": 40500,
-        "bank_transfer_price": 39800,
-        "card_price": 41500,
-        "installment_3_total": 41500,
-        "installment_6_total": 41500,
-        "installment_9_total": 44500,
-        "senet_total_price": 49800,
-        "senet_monthly_9": 5533,
-        "color": "Beyaz",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A++",
-        "capacity": "570 L",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Aile, geniş hacim, enerji tasarrufu",
-        "features": "Geniş kapasite, sessiz çalışma, enerji verimliliği",
-        "description": "Aile kullanımı için geniş hacimli ve enerji tasarruflu Bosch buzdolabı.",
-        "product_link": "https://www.nevade.com/bosch-buzdolabi",
-        "image_link": ""
-    },
 
-    # =========================
-    # ÇAMAŞIR MAKİNESİ
-    # =========================
-    {
-        "product_id": 16,
-        "product_name": "Beko Çamaşır Makinesi",
-        "category": "Beyaz Eşya",
-        "brand": "Beko",
-        "price": 17500,
-        "cash_price": 17000,
-        "bank_transfer_price": 16500,
-        "card_price": 17500,
-        "installment_3_total": 17500,
-        "installment_6_total": 17500,
-        "installment_9_total": 18800,
-        "senet_total_price": 21900,
-        "senet_monthly_9": 2433,
-        "color": "Beyaz",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A+",
-        "capacity": "8 kg",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Uygun fiyatlı, küçük aile, günlük kullanım",
-        "features": "8 kg kapasite, ekonomik fiyat, temel yıkama programları",
-        "description": "Uygun fiyatlı çamaşır makinesi arayan kullanıcılar için Beko modeli.",
-        "product_link": "https://www.nevade.com/beko-camasir-makinesi",
-        "image_link": ""
-    },
-    {
-        "product_id": 17,
-        "product_name": "Arçelik Çamaşır Makinesi",
-        "category": "Beyaz Eşya",
-        "brand": "Arçelik",
-        "price": 21000,
-        "cash_price": 20500,
-        "bank_transfer_price": 19900,
-        "card_price": 21000,
-        "installment_3_total": 21000,
-        "installment_6_total": 21000,
-        "installment_9_total": 22600,
-        "senet_total_price": 26800,
-        "senet_monthly_9": 2978,
-        "color": "Beyaz",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A++",
-        "capacity": "9 kg",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Aile, çeyiz, günlük kullanım",
-        "features": "9 kg kapasite, enerji tasarrufu, hızlı yıkama",
-        "description": "Aile ve çeyiz kullanımı için uygun Arçelik çamaşır makinesi.",
-        "product_link": "https://www.nevade.com/arcelik-camasir-makinesi",
-        "image_link": ""
-    },
-    {
-        "product_id": 18,
-        "product_name": "Siemens Çamaşır Makinesi",
-        "category": "Beyaz Eşya",
-        "brand": "Siemens",
-        "price": 32900,
-        "cash_price": 31900,
-        "bank_transfer_price": 31200,
-        "card_price": 32900,
-        "installment_3_total": 32900,
-        "installment_6_total": 32900,
-        "installment_9_total": 35200,
-        "senet_total_price": 39800,
-        "senet_monthly_9": 4422,
-        "color": "Beyaz",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "A+++",
-        "capacity": "10 kg",
-        "warranty": "3 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Premium aile kullanımı, geniş kapasite",
-        "features": "10 kg kapasite, sessiz motor, enerji tasarrufu, hassas yıkama",
-        "description": "Geniş aileler için yüksek kapasiteli Siemens çamaşır makinesi.",
-        "product_link": "https://www.nevade.com/siemens-camasir-makinesi",
-        "image_link": ""
-    },
+def price_options(price):
+    cash_price = round(price * 0.98)
+    bank_transfer_price = round(price * 0.96)
+    card_price = price
+    installment_3_total = round(price * 1.04)
+    installment_6_total = round(price * 1.08)
+    installment_9_total = round(price * 1.14)
+    senet_total_price = round(price * 1.27)
+    senet_monthly_9 = round(senet_total_price / 9)
 
-    # =========================
-    # EV ELEKTRONİĞİ
-    # =========================
-    {
-        "product_id": 19,
-        "product_name": "Dyson Dikey Süpürge",
-        "category": "Ev Elektroniği",
-        "brand": "Dyson",
-        "price": 22900,
-        "cash_price": 22300,
-        "bank_transfer_price": 21800,
-        "card_price": 22900,
-        "installment_3_total": 22900,
-        "installment_6_total": 22900,
-        "installment_9_total": 24600,
-        "senet_total_price": 27800,
-        "senet_monthly_9": 3089,
-        "color": "Gri",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Ev temizliği, pratik kullanım, güçlü çekim",
-        "features": "Kablosuz kullanım, güçlü çekim, hafif tasarım, pratik temizlik",
-        "description": "Pratik ve güçlü temizlik isteyen kullanıcılar için Dyson dikey süpürge.",
-        "product_link": "https://www.nevade.com/dyson-dikey-supurge",
-        "image_link": ""
-    },
-    {
-        "product_id": 20,
-        "product_name": "Philips Süpürge",
-        "category": "Ev Elektroniği",
-        "brand": "Philips",
-        "price": 8900,
-        "cash_price": 8600,
-        "bank_transfer_price": 8350,
-        "card_price": 8900,
-        "installment_3_total": 8900,
-        "installment_6_total": 8900,
-        "installment_9_total": 9600,
-        "senet_total_price": 11200,
-        "senet_monthly_9": 1244,
-        "color": "Siyah",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "",
-        "capacity": "3 L",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Uygun fiyatlı ev temizliği",
-        "features": "Toz torbalı kullanım, ekonomik fiyat, güçlü motor",
-        "description": "Uygun fiyatlı ve temel ev temizliği için Philips süpürge.",
-        "product_link": "https://www.nevade.com/philips-supurge",
-        "image_link": ""
-    },
-    {
-        "product_id": 21,
-        "product_name": "Tefal Airfryer",
-        "category": "Ev Elektroniği",
-        "brand": "Tefal",
-        "price": 6500,
-        "cash_price": 6300,
-        "bank_transfer_price": 6100,
-        "card_price": 6500,
-        "installment_3_total": 6500,
-        "installment_6_total": 6500,
-        "installment_9_total": 7000,
-        "senet_total_price": 8200,
-        "senet_monthly_9": 911,
-        "color": "Siyah",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "",
-        "capacity": "4.2 L",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Mutfak, pratik yemek, az yağlı pişirme",
-        "features": "Az yağlı pişirme, kompakt tasarım, kolay temizlik",
-        "description": "Pratik ve az yağlı pişirme için Tefal airfryer.",
-        "product_link": "https://www.nevade.com/tefal-airfryer",
-        "image_link": ""
-    },
-    {
-        "product_id": 22,
-        "product_name": "Karaca Kahve Makinesi",
-        "category": "Ev Elektroniği",
-        "brand": "Karaca",
-        "price": 4200,
-        "cash_price": 4050,
-        "bank_transfer_price": 3900,
-        "card_price": 4200,
-        "installment_3_total": 4200,
-        "installment_6_total": 4200,
-        "installment_9_total": 4550,
-        "senet_total_price": 5300,
-        "senet_monthly_9": 589,
-        "color": "Krem",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "",
-        "energy_class": "",
-        "capacity": "4 fincan",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Mutfak, kahve, çeyiz",
-        "features": "Türk kahvesi, otomatik pişirme, kompakt tasarım",
-        "description": "Çeyiz ve günlük kahve kullanımı için Karaca kahve makinesi.",
-        "product_link": "https://www.nevade.com/karaca-kahve-makinesi",
-        "image_link": ""
-    },
-
-    # =========================
-    # TELEVİZYON
-    # =========================
-    {
-        "product_id": 23,
-        "product_name": "Samsung 4K Televizyon",
-        "category": "Televizyon",
-        "brand": "Samsung",
-        "price": 28900,
-        "cash_price": 28000,
-        "bank_transfer_price": 27400,
-        "card_price": 28900,
-        "installment_3_total": 28900,
-        "installment_6_total": 28900,
-        "installment_9_total": 30900,
-        "senet_total_price": 34800,
-        "senet_monthly_9": 3867,
-        "color": "Siyah",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "55 inç",
-        "energy_class": "A",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Salon, film, günlük TV kullanımı",
-        "features": "4K çözünürlük, akıllı TV, geniş ekran",
-        "description": "Salon ve film deneyimi için 55 inç Samsung 4K televizyon.",
-        "product_link": "https://www.nevade.com/samsung-4k-tv",
-        "image_link": ""
-    },
-    {
-        "product_id": 24,
-        "product_name": "LG OLED Televizyon",
-        "category": "Televizyon",
-        "brand": "LG",
-        "price": 56900,
-        "cash_price": 55500,
-        "bank_transfer_price": 54000,
-        "card_price": 56900,
-        "installment_3_total": 56900,
-        "installment_6_total": 56900,
-        "installment_9_total": 61000,
-        "senet_total_price": 68200,
-        "senet_monthly_9": 7578,
-        "color": "Siyah",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "65 inç",
-        "energy_class": "A",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Premium salon, sinema, oyun",
-        "features": "OLED panel, yüksek görüntü kalitesi, 65 inç geniş ekran",
-        "description": "Premium görüntü kalitesi isteyen kullanıcılar için LG OLED televizyon.",
-        "product_link": "https://www.nevade.com/lg-oled-tv",
-        "image_link": ""
-    },
-    {
-        "product_id": 25,
-        "product_name": "TCL Akıllı TV",
-        "category": "Televizyon",
-        "brand": "TCL",
-        "price": 17900,
-        "cash_price": 17400,
-        "bank_transfer_price": 16900,
-        "card_price": 17900,
-        "installment_3_total": 17900,
-        "installment_6_total": 17900,
-        "installment_9_total": 19200,
-        "senet_total_price": 21800,
-        "senet_monthly_9": 2422,
-        "color": "Siyah",
-        "processor": "",
-        "ram": "",
-        "storage": "",
-        "screen_size": "50 inç",
-        "energy_class": "A",
-        "capacity": "",
-        "warranty": "2 yıl",
-        "stock_status": "Stokta",
-        "installment_available": "Evet",
-        "payment_options": "Peşin, havale, kart, taksit, senet",
-        "use_case": "Uygun fiyatlı salon TV, günlük kullanım",
-        "features": "Akıllı TV, 4K, uygun fiyat, geniş ekran",
-        "description": "Uygun fiyatlı akıllı televizyon isteyen kullanıcılar için TCL TV.",
-        "product_link": "https://www.nevade.com/tcl-akilli-tv",
-        "image_link": ""
+    return {
+        "cash_price": cash_price,
+        "bank_transfer_price": bank_transfer_price,
+        "card_price": card_price,
+        "installment_3_total": installment_3_total,
+        "installment_6_total": installment_6_total,
+        "installment_9_total": installment_9_total,
+        "senet_total_price": senet_total_price,
+        "senet_monthly_9": senet_monthly_9,
     }
+
+
+def make_product(
+    product_id,
+    product_name,
+    category,
+    brand,
+    price,
+    color="",
+    processor="",
+    ram="",
+    storage="",
+    screen_size="",
+    energy_class="",
+    capacity="",
+    warranty="2 yıl",
+    stock_status="Stokta",
+    use_case="",
+    features="",
+    description="",
+    image_query="product"
+):
+    payments = price_options(price)
+
+    return {
+        "product_id": product_id,
+        "product_name": product_name,
+        "category": category,
+        "brand": brand,
+        "price": price,
+        "cash_price": payments["cash_price"],
+        "bank_transfer_price": payments["bank_transfer_price"],
+        "card_price": payments["card_price"],
+        "installment_3_total": payments["installment_3_total"],
+        "installment_6_total": payments["installment_6_total"],
+        "installment_9_total": payments["installment_9_total"],
+        "senet_total_price": payments["senet_total_price"],
+        "senet_monthly_9": payments["senet_monthly_9"],
+        "color": color,
+        "processor": processor,
+        "ram": ram,
+        "storage": storage,
+        "screen_size": screen_size,
+        "energy_class": energy_class,
+        "capacity": capacity,
+        "warranty": warranty,
+        "stock_status": stock_status,
+        "installment_available": "Evet",
+        "payment_options": "Peşin, havale, kredi kartı, taksit, senet",
+        "use_case": use_case,
+        "features": features,
+        "description": description,
+        "product_link": "",
+        "image_link": image_url(image_query, product_id),
+    }
+
+
+products = []
+pid = 1001
+
+
+# =====================================================
+# LAPTOP / BİLGİSAYAR
+# =====================================================
+
+laptop_data = [
+    ("Lenovo", "IdeaPad Slim 3", "Intel i5", "8 GB", "512 GB SSD", "15.6 inç", 21999, "öğrenci, okul, günlük kullanım"),
+    ("Lenovo", "ThinkBook 15", "Intel i7", "16 GB", "1 TB SSD", "15.6 inç", 38999, "ofis, iş, çoklu görev"),
+    ("HP", "Pavilion 15", "Ryzen 5", "16 GB", "512 GB SSD", "15.6 inç", 28999, "öğrenci, ofis, günlük kullanım"),
+    ("HP", "Victus Gaming", "Intel i7", "16 GB", "1 TB SSD", "16 inç", 52999, "oyun, performans, yüksek hız"),
+    ("Asus", "VivoBook 15", "Intel i5", "8 GB", "512 GB SSD", "15.6 inç", 24999, "öğrenci, taşınabilir, günlük kullanım"),
+    ("Asus", "ZenBook 14", "Ryzen 7", "16 GB", "1 TB SSD", "14 inç", 45999, "hafif, premium, iş kullanımı"),
+    ("Apple", "MacBook Air M1", "Apple M1", "8 GB", "256 GB SSD", "13.3 inç", 34999, "öğrenci, hafif, uzun pil"),
+    ("Apple", "MacBook Air M2", "Apple M2", "8 GB", "512 GB SSD", "13.6 inç", 48999, "öğrenci, tasarım, premium kullanım"),
+    ("Dell", "Inspiron 15", "Intel i5", "16 GB", "512 GB SSD", "15.6 inç", 31999, "ofis, ev, günlük kullanım"),
+    ("MSI", "Modern 15", "Ryzen 7", "16 GB", "1 TB SSD", "15.6 inç", 42999, "performans, yazılım, çoklu görev"),
 ]
 
+for item in laptop_data:
+    brand, model, processor, ram, storage, screen, price, use_case = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=f"{brand} {model} Laptop",
+        category="Bilgisayar",
+        brand=brand,
+        price=price,
+        color=random.choice(["Gri", "Siyah", "Gümüş", "Mavi"]),
+        processor=processor,
+        ram=ram,
+        storage=storage,
+        screen_size=screen,
+        use_case=use_case,
+        features=f"{processor} işlemci, {ram} RAM, {storage}, {screen} ekran, hızlı ve taşınabilir tasarım",
+        description=f"{brand} {model}, {use_case} için uygun, performans ve taşınabilirliği birlikte sunan bir laptop modelidir.",
+        image_query="laptop computer"
+    ))
+    pid += 1
+
+
+# =====================================================
+# TELEFON
+# =====================================================
+
+phone_data = [
+    ("Apple", "iPhone 13", "4 GB", "128 GB", "6.1 inç", 32999, "günlük kullanım, kamera, sosyal medya"),
+    ("Apple", "iPhone 14", "6 GB", "128 GB", "6.1 inç", 41999, "premium telefon, kamera, uzun kullanım"),
+    ("Apple", "iPhone 15", "6 GB", "128 GB", "6.1 inç", 52999, "premium telefon, güçlü kamera, hızlı performans"),
+    ("Apple", "iPhone 15 Pro", "8 GB", "256 GB", "6.1 inç", 74999, "üst seviye kamera, performans, profesyonel kullanım"),
+    ("Samsung", "Galaxy A55", "8 GB", "256 GB", "6.6 inç", 22999, "uygun fiyatlı telefon, günlük kullanım"),
+    ("Samsung", "Galaxy S24", "8 GB", "256 GB", "6.2 inç", 52999, "amiral gemisi, kamera, performans"),
+    ("Xiaomi", "Redmi Note 13", "8 GB", "256 GB", "6.6 inç", 13999, "uygun fiyatlı telefon, günlük kullanım"),
+    ("Xiaomi", "Redmi Note 13 Pro", "12 GB", "512 GB", "6.7 inç", 21999, "fiyat performans, kamera, oyun"),
+    ("Oppo", "Reno 11", "8 GB", "256 GB", "6.7 inç", 18999, "kamera, şık tasarım, sosyal medya"),
+    ("Realme", "12 Pro", "12 GB", "256 GB", "6.7 inç", 19999, "performans, kamera, günlük kullanım"),
+]
+
+for item in phone_data:
+    brand, model, ram, storage, screen, price, use_case = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=f"{brand} {model} Telefon",
+        category="Telefon",
+        brand=brand,
+        price=price,
+        color=random.choice(["Siyah", "Beyaz", "Mavi", "Yeşil", "Mor"]),
+        ram=ram,
+        storage=storage,
+        screen_size=screen,
+        use_case=use_case,
+        features=f"{ram} RAM, {storage} depolama, {screen} ekran, güçlü kamera ve hızlı şarj",
+        description=f"{brand} {model}, {use_case} için uygun, modern tasarıma sahip bir akıllı telefondur.",
+        image_query="smartphone"
+    ))
+    pid += 1
+
+
+# =====================================================
+# BUZDOLABI
+# =====================================================
+
+fridge_data = [
+    ("Beko", "No Frost Buzdolabı", 24000, "514 L", "A+", "aile kullanımı, geniş hacim, çeyiz"),
+    ("Arçelik", "No Frost Buzdolabı", 31500, "560 L", "A++", "geniş aile, enerji tasarrufu, mutfak"),
+    ("Bosch", "Kombi Tipi Buzdolabı", 42999, "480 L", "A++", "sessiz çalışma, enerji verimliliği"),
+    ("Siemens", "No Frost Buzdolabı", 45999, "520 L", "A++", "premium mutfak, geniş hacim"),
+    ("Samsung", "Gardırop Tipi Buzdolabı", 63999, "620 L", "A++", "büyük aile, yüksek kapasite"),
+    ("LG", "Inverter Buzdolabı", 58999, "600 L", "A+++", "enerji tasarrufu, geniş aile"),
+    ("Vestel", "Ekonomik Buzdolabı", 19999, "420 L", "A+", "uygun fiyat, günlük kullanım"),
+    ("Beko", "Çift Kapılı Buzdolabı", 21999, "450 L", "A+", "çeyiz, uygun fiyat, aile"),
+]
+
+for item in fridge_data:
+    brand, model, price, capacity, energy, use_case = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=f"{brand} {model}",
+        category="Beyaz Eşya",
+        brand=brand,
+        price=price,
+        color=random.choice(["Beyaz", "İnox", "Gri", "Siyah"]),
+        energy_class=energy,
+        capacity=capacity,
+        use_case=use_case,
+        features=f"{capacity} kapasite, {energy} enerji sınıfı, no frost soğutma, sessiz motor",
+        description=f"{brand} {model}, {use_case} için uygun, geniş hacimli ve enerji verimli bir buzdolabıdır.",
+        image_query="refrigerator kitchen"
+    ))
+    pid += 1
+
+
+# =====================================================
+# ÇAMAŞIR MAKİNESİ
+# =====================================================
+
+washer_data = [
+    ("Beko", "8 kg Çamaşır Makinesi", 17500, "8 kg", "A+", "çeyiz, günlük yıkama, uygun fiyat"),
+    ("Arçelik", "9 kg Çamaşır Makinesi", 21999, "9 kg", "A++", "aile kullanımı, sessiz çalışma"),
+    ("Bosch", "10 kg Çamaşır Makinesi", 32999, "10 kg", "A+++", "yüksek kapasite, enerji tasarrufu"),
+    ("Siemens", "9 kg Çamaşır Makinesi", 35999, "9 kg", "A++", "premium kullanım, sessiz motor"),
+    ("Samsung", "EcoBubble Çamaşır Makinesi", 28999, "9 kg", "A++", "hassas yıkama, aile kullanımı"),
+    ("LG", "Inverter Çamaşır Makinesi", 31999, "10 kg", "A+++", "sessiz çalışma, enerji verimliliği"),
+    ("Vestel", "7 kg Çamaşır Makinesi", 13999, "7 kg", "A+", "uygun fiyat, küçük aile"),
+]
+
+for item in washer_data:
+    brand, model, price, capacity, energy, use_case = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=f"{brand} {model}",
+        category="Beyaz Eşya",
+        brand=brand,
+        price=price,
+        color=random.choice(["Beyaz", "Gri", "İnox"]),
+        energy_class=energy,
+        capacity=capacity,
+        use_case=use_case,
+        features=f"{capacity} yıkama kapasitesi, {energy} enerji sınıfı, hızlı yıkama, sessiz çalışma",
+        description=f"{brand} {model}, {use_case} için uygun, tasarruflu ve kullanışlı bir çamaşır makinesidir.",
+        image_query="washing machine laundry"
+    ))
+    pid += 1
+
+
+# =====================================================
+# TELEVİZYON
+# =====================================================
+
+tv_data = [
+    ("Samsung", "55 inç 4K Smart TV", 26999, "55 inç", "A+", "film, dizi, oyun, salon kullanımı"),
+    ("LG", "55 inç OLED TV", 49999, "55 inç", "A", "premium görüntü, sinema deneyimi"),
+    ("TCL", "50 inç Android TV", 17999, "50 inç", "A+", "uygun fiyat, akıllı TV"),
+    ("Vestel", "43 inç Smart TV", 12999, "43 inç", "A+", "ekonomik televizyon, günlük kullanım"),
+    ("Philips", "Ambilight 65 inç TV", 42999, "65 inç", "A", "sinema, büyük ekran, salon"),
+    ("Sony", "Bravia 65 inç 4K TV", 54999, "65 inç", "A", "yüksek görüntü kalitesi, oyun"),
+    ("Samsung", "65 inç QLED TV", 58999, "65 inç", "A", "premium salon, yüksek parlaklık"),
+]
+
+for item in tv_data:
+    brand, model, price, screen, energy, use_case = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=f"{brand} {model}",
+        category="Televizyon",
+        brand=brand,
+        price=price,
+        color="Siyah",
+        screen_size=screen,
+        energy_class=energy,
+        use_case=use_case,
+        features=f"{screen} ekran, 4K çözünürlük, Smart TV, yüksek görüntü kalitesi",
+        description=f"{brand} {model}, {use_case} için uygun, net görüntü ve akıllı kullanım sunan bir televizyondur.",
+        image_query="television living room"
+    ))
+    pid += 1
+
+
+# =====================================================
+# EV ELEKTRONİĞİ / KÜÇÜK EV ALETLERİ
+# =====================================================
+
+home_data = [
+    ("Dyson", "V12 Dikey Süpürge", "Ev Elektroniği", 28999, "kablosuz süpürge, güçlü çekim, pratik temizlik", "vacuum cleaner"),
+    ("Philips", "PowerPro Süpürge", "Ev Elektroniği", 8999, "günlük temizlik, uygun fiyat, güçlü emiş", "vacuum cleaner"),
+    ("Tefal", "Easy Fry Airfryer", "Ev Elektroniği", 5999, "sağlıklı pişirme, mutfak, pratik kullanım", "air fryer"),
+    ("Karaca", "Türk Kahve Makinesi", "Ev Elektroniği", 3499, "kahve, mutfak, pratik kullanım", "coffee machine"),
+    ("Arzum", "Çay Makinesi", "Ev Elektroniği", 2499, "çay, mutfak, günlük kullanım", "tea maker"),
+    ("Fakir", "Blender Seti", "Ev Elektroniği", 1999, "mutfak hazırlık, pratik kullanım", "blender"),
+    ("Philips", "Buharlı Ütü", "Ev Elektroniği", 2999, "kıyafet bakımı, günlük kullanım", "steam iron"),
+    ("Xiaomi", "Robot Süpürge", "Ev Elektroniği", 15999, "akıllı temizlik, robot süpürge, ev kullanımı", "robot vacuum"),
+    ("Bosch", "Mutfak Robotu", "Ev Elektroniği", 7999, "mutfak, hamur, yemek hazırlık", "food processor"),
+    ("Tefal", "Tost Makinesi", "Ev Elektroniği", 2799, "kahvaltı, mutfak, pratik kullanım", "sandwich maker"),
+]
+
+for item in home_data:
+    brand, model, category, price, use_case, img_query = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=f"{brand} {model}",
+        category=category,
+        brand=brand,
+        price=price,
+        color=random.choice(["Siyah", "Beyaz", "Gri", "Kırmızı"]),
+        use_case=use_case,
+        features=f"{use_case}, kompakt tasarım, kolay kullanım",
+        description=f"{brand} {model}, {use_case} için uygun, ev kullanımını kolaylaştıran bir üründür.",
+        image_query=img_query
+    ))
+    pid += 1
+
+
+# =====================================================
+# ÇEYİZ PAKETLERİ / BUNDLE
+# =====================================================
+
+bundle_data = [
+    ("Beko Çeyiz Beyaz Eşya Paketi", "Beko", 49999, "buzdolabı, çamaşır makinesi, küçük ev aleti, çeyiz"),
+    ("Arçelik Yeni Ev Paketi", "Arçelik", 57999, "çeyiz, beyaz eşya, yeni ev kurulum"),
+    ("Vestel Ekonomik Çeyiz Paketi", "Vestel", 39999, "uygun fiyat, çeyiz, temel beyaz eşya"),
+    ("Bosch Premium Ev Paketi", "Bosch", 72999, "premium beyaz eşya, enerji tasarrufu, aile"),
+]
+
+for item in bundle_data:
+    name, brand, price, use_case = item
+    products.append(make_product(
+        product_id=f"P{pid}",
+        product_name=name,
+        category="Beyaz Eşya",
+        brand=brand,
+        price=price,
+        color="Karışık",
+        energy_class="A++",
+        capacity="Paket",
+        use_case=use_case,
+        features="çeyiz paketi, yeni ev kurulumu, beyaz eşya kombinasyonu, ödeme avantajı",
+        description=f"{name}, yeni ev kuran veya çeyiz hazırlayan kullanıcılar için hazırlanmış demo ürün paketidir.",
+        image_query="home appliances kitchen"
+    ))
+    pid += 1
+
+
 df = pd.DataFrame(products)
+
 df.to_csv("data/products.csv", index=False, encoding="utf-8-sig")
 
-print("data/products.csv oluşturuldu.")
+print("Türkçe resimli ürün seti oluşturuldu.")
 print(f"Toplam ürün sayısı: {len(df)}")
+print("Dosya: data/products.csv")
