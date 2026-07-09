@@ -1,457 +1,608 @@
+import re
 import pandas as pd
 
-from src.nlp_engine import normalize_text, PRODUCT_TYPE_LABELS
+
+# =====================================================
+# TEMEL YARDIMCILAR
+# =====================================================
+
+def normalize_text(text):
+    if text is None:
+        return ""
+
+    text = str(text).lower().strip()
+
+    replacements = {
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u",
+        "â": "a",
+        "î": "i",
+        "û": "u",
+    }
+
+    for tr_char, simple_char in replacements.items():
+        text = text.replace(tr_char, simple_char)
+
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+
+def safe_number(value):
+    try:
+        if pd.isna(value):
+            return 0
+
+        if isinstance(value, str):
+            value = (
+                value.replace("TL", "")
+                .replace("₺", "")
+                .replace(".", "")
+                .replace(",", ".")
+                .strip()
+            )
+
+        return float(value)
+
+    except Exception:
+        return 0
+
+
+def money(value):
+    return f"{safe_number(value):,.0f} TL".replace(",", ".")
+
+
+def row_text(row):
+    return normalize_text(
+        " ".join(
+            [
+                str(row.get("product_name", "")),
+                str(row.get("category", "")),
+                str(row.get("brand", "")),
+                str(row.get("description", "")),
+                str(row.get("features", "")),
+                str(row.get("use_case", "")),
+                str(row.get("payment_options", "")),
+            ]
+        )
+    )
 
 
 # =====================================================
-# PRODUCT MATCHING RULES
+# ÜRÜN TİPİ SÖZLÜĞÜ
 # =====================================================
 
-PRODUCT_TYPE_MATCH_WORDS = {
-    "laptop": [
-        "laptop",
-        "bilgisayar",
-        "notebook",
-        "macbook",
-        "dizustu",
-    ],
-
-    "telefon": [
-        "telefon",
-        "iphone",
-        "galaxy",
-        "redmi",
-        "xiaomi",
-        "cep telefonu",
-    ],
-
+PRODUCT_TYPE_RULES = {
     "buzdolabi": [
         "buzdolabi",
         "buz dolabi",
         "no frost",
+        "mini buzdolabi",
+        "derin dondurucu",
         "sogutucu",
+        "soguk icecek",
+        "icecek saklama",
     ],
-
     "camasir_makinesi": [
-        "camasir",
         "camasir makinesi",
+        "camasir",
+        "makine",
+        "9 kg",
+        "7 kg",
         "yikama",
     ],
-
     "bulasik_makinesi": [
-        "bulasik",
         "bulasik makinesi",
+        "bulasik",
+        "4 program",
+        "programli bulasik",
     ],
-
-    "firin": [
-        "firin",
-        "ankastre",
-        "ankastre firin",
-        "mini firin",
-        "elektrikli firin",
-    ],
-
     "televizyon": [
         "televizyon",
         "tv",
         "smart tv",
+        "akilli tv",
+        "led tv",
         "oled",
-        "4k",
+        "qled",
+        "inc tv",
     ],
-
     "supurge": [
         "supurge",
+        "elektrikli supurge",
+        "dikey supurge",
         "robot supurge",
-        "dyson",
-        "philips supurge",
+        "temizlik",
     ],
-
-    "blender": [
-        "blender",
-        "blender seti",
+    "laptop": [
+        "laptop",
+        "notebook",
+        "bilgisayar",
+        "oyun bilgisayari",
+        "ogrenci bilgisayari",
+        "gaming",
     ],
-
-    "cay_makinesi": [
-        "cay makinesi",
-        "cayci",
+    "telefon": [
+        "telefon",
+        "cep telefonu",
+        "iphone",
+        "samsung galaxy",
+        "galaxy",
+        "android",
+        "akilli telefon",
     ],
-
-    "tost_makinesi": [
-        "tost makinesi",
-        "tost",
+    "klima": [
+        "klima",
+        "inverter klima",
+        "sogutma",
+        "isitma",
     ],
-
-    "utu": [
-        "utu",
-        "buharli utu",
+    "firin": [
+        "firin",
+        "ankastre firin",
+        "ocak",
+        "ankastre",
     ],
 }
 
 
+CATEGORY_RULES = {
+    "beyaz_esya": [
+        "beyaz esya",
+        "buzdolabi",
+        "camasir",
+        "bulasik",
+        "firin",
+        "klima",
+    ],
+    "elektronik": [
+        "elektronik",
+        "televizyon",
+        "tv",
+        "telefon",
+        "laptop",
+        "bilgisayar",
+    ],
+    "kucuk_ev_aleti": [
+        "kucuk ev aleti",
+        "supurge",
+        "kahve",
+        "robot",
+        "temizlik",
+    ],
+}
+
+
+PACKAGE_WORDS = [
+    "ceyiz",
+    "paket",
+    "set",
+    "ev diziyorum",
+    "ev kuruyorum",
+    "evleniyorum",
+    "dugun",
+]
+
+
 # =====================================================
-# BASIC HELPERS
+# SORUDAN ÜRÜN TİPİ ÇIKARMA
 # =====================================================
 
-def safe_number(value):
-    try:
-        if value is None or pd.isna(value):
-            return 0.0
+def detect_strict_product_types(query_info):
+    """
+    Kullanıcı net ürün tipi söylemişse döndürür.
+    Örn: buzdolabı, laptop, telefon.
+    """
 
-        if isinstance(value, (int, float)):
-            return float(value)
+    q = normalize_text(
+        query_info.get("raw_query", "")
+        or query_info.get("original_query", "")
+        or query_info.get("normalized_query", "")
+    )
 
-        text = str(value).strip()
-        text = text.replace("TL", "").replace("tl", "").replace("₺", "").strip()
+    detected = []
 
-        if text == "":
-            return 0.0
+    existing_types = query_info.get("product_types", []) or []
 
-        if "," in text and "." in text:
-            text = text.replace(".", "").replace(",", ".")
-        elif "," in text:
-            text = text.replace(",", ".")
+    for product_type in existing_types:
+        norm_type = normalize_text(product_type)
+
+        if norm_type:
+            detected.append(norm_type)
+
+    for product_type, keywords in PRODUCT_TYPE_RULES.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in q:
+                detected.append(product_type)
+                break
+
+    # tekrarları temizle
+    cleaned = []
+
+    for item in detected:
+        if item not in cleaned:
+            cleaned.append(item)
+
+    return cleaned
+
+
+def is_package_query(query_info):
+    q = normalize_text(
+        query_info.get("raw_query", "")
+        or query_info.get("original_query", "")
+        or query_info.get("normalized_query", "")
+    )
+
+    return any(word in q for word in PACKAGE_WORDS)
+
+
+def detect_category_query(query_info):
+    q = normalize_text(
+        query_info.get("raw_query", "")
+        or query_info.get("original_query", "")
+        or query_info.get("normalized_query", "")
+    )
+
+    detected = []
+
+    for category, keywords in CATEGORY_RULES.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in q:
+                detected.append(category)
+                break
+
+    return detected
+
+
+# =====================================================
+# STRICT FILTER
+# =====================================================
+
+def product_type_match(row, product_type):
+    text = row_text(row)
+
+    if product_type == "buzdolabi":
+        return (
+            "buzdolabi" in text
+            or "buz dolabi" in text
+            or "no frost" in text
+            or "sogutucu" in text
+            or "mini bar" in text
+        )
+
+    if product_type == "camasir_makinesi":
+        return "camasir" in text and "bulasik" not in text
+
+    if product_type == "bulasik_makinesi":
+        return "bulasik" in text
+
+    if product_type == "televizyon":
+        return (
+            "televizyon" in text
+            or "smart tv" in text
+            or " tv " in f" {text} "
+            or "akilli tv" in text
+        )
+
+    if product_type == "supurge":
+        return "supurge" in text or "temizlik" in text
+
+    if product_type == "laptop":
+        return (
+            "laptop" in text
+            or "notebook" in text
+            or "bilgisayar" in text
+            or "gaming" in text
+        )
+
+    if product_type == "telefon":
+        return (
+            "telefon" in text
+            or "iphone" in text
+            or "galaxy" in text
+            or "android" in text
+        )
+
+    if product_type == "klima":
+        return "klima" in text
+
+    if product_type == "firin":
+        return "firin" in text or "ankastre" in text
+
+    return False
+
+
+def apply_strict_product_filter(df, query_info):
+    """
+    En önemli katman:
+    Kullanıcı net ürün tipi söylediyse başka ürünler elenir.
+    """
+
+    if df.empty:
+        return df
+
+    if is_package_query(query_info):
+        # Çeyiz/paket isteklerinde farklı kategoriler karışabilir.
+        return df
+
+    strict_types = detect_strict_product_types(query_info)
+
+    if not strict_types:
+        return df
+
+    filtered_parts = []
+
+    for product_type in strict_types:
+        part = df[df.apply(lambda row: product_type_match(row, product_type), axis=1)]
+
+        if not part.empty:
+            filtered_parts.append(part)
+
+    if not filtered_parts:
+        return df.iloc[0:0]
+
+    filtered = pd.concat(filtered_parts).drop_duplicates()
+
+    return filtered
+
+
+# =====================================================
+# SKORLAMA
+# =====================================================
+
+def score_product(row, query_info):
+    q = normalize_text(
+        query_info.get("raw_query", "")
+        or query_info.get("original_query", "")
+        or query_info.get("normalized_query", "")
+    )
+
+    budget = safe_number(query_info.get("budget", 0))
+
+    brands = query_info.get("brands", []) or []
+    product_types = detect_strict_product_types(query_info)
+    categories = query_info.get("categories", []) or []
+    use_cases = query_info.get("use_cases", []) or []
+    payment_priority = query_info.get("payment_priority")
+    payments = query_info.get("payments", []) or []
+
+    text = row_text(row)
+
+    score = 0
+
+    # Kelime eşleşmesi
+    for token in q.split():
+        if len(token) > 2 and token in text:
+            score += 4
+
+    # Marka eşleşmesi
+    for brand in brands:
+        if normalize_text(brand) in text:
+            score += 30
+
+    # Ürün tipi eşleşmesi
+    for product_type in product_types:
+        if product_type_match(row, product_type):
+            score += 45
         else:
-            if text.count(".") == 1:
-                left, right = text.split(".")
-                if len(right) == 3:
-                    text = text.replace(".", "")
+            score -= 80
 
-        return float(text)
+    # Kategori eşleşmesi
+    for category in categories:
+        if normalize_text(category) in text:
+            score += 15
 
-    except Exception:
-        return 0.0
+    detected_categories = detect_category_query(query_info)
 
+    for category in detected_categories:
+        if category == "beyaz_esya" and any(
+            word in text for word in ["buzdolabi", "camasir", "bulasik", "firin", "klima"]
+        ):
+            score += 15
 
-def money(value):
-    value = safe_number(value)
+        if category == "elektronik" and any(
+            word in text for word in ["telefon", "laptop", "bilgisayar", "televizyon", "tv"]
+        ):
+            score += 15
 
-    if value <= 0:
-        return "-"
+        if category == "kucuk_ev_aleti" and any(
+            word in text for word in ["supurge", "kahve", "temizlik"]
+        ):
+            score += 15
 
-    return f"{value:,.0f} TL".replace(",", ".")
+    # Kullanım amacı
+    for use_case in use_cases:
+        uc = normalize_text(use_case)
 
+        if uc in text:
+            score += 18
 
-def get_product_text(row):
-    fields = [
-        "product_name",
-        "category",
-        "brand",
-        "description",
-        "features",
-        "use_case",
-        "payment_options",
-        "processor",
-        "ram",
-        "storage",
-        "capacity",
-        "energy_class",
-    ]
+        if uc == "ceyiz" and any(
+            word in text for word in ["buzdolabi", "camasir", "bulasik", "televizyon", "supurge"]
+        ):
+            score += 18
 
-    parts = []
+        if uc == "ogrenci" and any(
+            word in text for word in ["laptop", "bilgisayar", "telefon", "tablet"]
+        ):
+            score += 16
 
-    for field in fields:
-        if field in row:
-            parts.append(str(row.get(field, "")))
+    # Bütçe
+    price = safe_number(row.get("price", 0))
 
-    return normalize_text(" ".join(parts))
+    if budget:
+        if price and price <= budget:
+            score += 20
+        elif price and price > budget:
+            over_ratio = price / budget
 
+            if over_ratio <= 1.10:
+                score -= 5
+            elif over_ratio <= 1.25:
+                score -= 15
+            else:
+                score -= 35
 
-def matches_product_type(row, product_type):
-    if not product_type:
-        return True
+    # Ödeme tercihleri
+    if "senet" in q or "senet" in payments or payment_priority == "lowest_monthly":
+        if safe_number(row.get("senet_total_price", 0)) > 0:
+            score += 22
+        if safe_number(row.get("senet_monthly_9", 0)) > 0:
+            score += 12
 
-    text = get_product_text(row)
-    match_words = PRODUCT_TYPE_MATCH_WORDS.get(product_type, [])
+    if "havale" in q or "havale" in payments or payment_priority == "lowest_total":
+        if safe_number(row.get("bank_transfer_price", 0)) > 0:
+            score += 22
 
-    if not match_words:
-        return True
+    if "taksit" in q or "taksit" in payments or payment_priority == "card_installment":
+        if safe_number(row.get("installment_6_total", 0)) > 0:
+            score += 20
 
-    return any(normalize_text(word) in text for word in match_words)
+    # Stok
+    if normalize_text(row.get("stock_status", "")) == "stokta":
+        score += 8
 
-
-# =====================================================
-# FILTERING
-# =====================================================
-
-def filter_by_category(products_df, category):
-    if products_df.empty or not category:
-        return products_df.copy()
-
-    if "category" not in products_df.columns:
-        return products_df.copy()
-
-    filtered = products_df[
-        products_df["category"].astype(str).apply(normalize_text) == normalize_text(category)
-    ].copy()
-
-    return filtered
-
-
-def filter_by_product_type(products_df, product_type):
-    if products_df.empty or not product_type:
-        return products_df.copy()
-
-    filtered = products_df[
-        products_df.apply(lambda row: matches_product_type(row, product_type), axis=1)
-    ].copy()
-
-    return filtered
-
-
-def filter_by_brand(products_df, brand):
-    if products_df.empty or not brand:
-        return products_df.copy()
-
-    if "brand" not in products_df.columns:
-        return products_df.copy()
-
-    filtered = products_df[
-        products_df["brand"].astype(str).apply(normalize_text) == normalize_text(brand)
-    ].copy()
-
-    return filtered
-
-
-def filter_by_budget(products_df, budget):
-    if products_df.empty or not budget:
-        return products_df.copy()
-
-    if "price" not in products_df.columns:
-        return products_df.copy()
-
-    filtered = products_df[
-        products_df["price"].apply(safe_number) <= safe_number(budget)
-    ].copy()
-
-    return filtered
+    return score
 
 
 # =====================================================
-# DECISION ANSWERS
-# =====================================================
-
-def create_category_clarification(query_info):
-    category = query_info.get("category")
-
-    if category == "Beyaz Eşya":
-        return (
-            "Beyaz eşya için yardımcı olabilirim. Daha doğru öneri yapabilmem için hangi ürün grubunu istediğinizi "
-            "bilmem gerekiyor: buzdolabı, çamaşır makinesi, bulaşık makinesi, fırın ya da çeyiz paketi mi düşünüyorsunuz?"
-        )
-
-    if category == "Bilgisayar":
-        return (
-            "Bilgisayar kategorisinde yardımcı olabilirim. Öğrenci kullanımı, oyun, ofis veya yazılım için mi arıyorsunuz? "
-            "Bütçenizi de yazarsanız daha doğru laptop öneririm."
-        )
-
-    if category == "Telefon":
-        return (
-            "Telefon kategorisinde yardımcı olabilirim. Bütçenizi, marka tercihinizi veya ödeme şeklinizi belirtirseniz "
-            "size daha uygun modelleri önerebilirim."
-        )
-
-    if category == "Televizyon":
-        return (
-            "Televizyon için yardımcı olabilirim. Kaç inç düşündüğünüzü, bütçenizi veya kullanım amacınızı yazarsanız "
-            "daha doğru öneri sunabilirim."
-        )
-
-    if category == "Küçük Ev Aleti":
-        return (
-            "Küçük ev aleti kategorisinde yardımcı olabilirim. Süpürge, blender, çay makinesi, tost makinesi veya ütü gibi "
-            "hangi ürünü düşündüğünüzü yazarsanız daha doğru öneri yapabilirim."
-        )
-
-    return (
-        "Hangi ürün grubunu aradığınızı biraz daha net yazarsanız size daha doğru yardımcı olabilirim."
-    )
-
-
-def create_budget_clarification(query_info):
-    budget = query_info.get("budget")
-
-    return (
-        f"{money(budget)} altı ürün aradığınızı anladım; ancak kategori belirtmediğiniz için rastgele ürün önermek doğru olmaz. "
-        "Laptop, telefon, beyaz eşya, televizyon veya küçük ev aleti gibi bir kategori yazarsanız size daha doğru seçenekler sunabilirim."
-    )
-
-
-def create_no_product_type_match(query_info):
-    product_type = query_info.get("product_type")
-    category = query_info.get("category")
-    label = PRODUCT_TYPE_LABELS.get(product_type, product_type or "bu ürün tipi")
-
-    if category:
-        return (
-            f"{label} aradığınızı anladım; ancak ürün listesinde {category} kategorisi altında "
-            f"{label} için uygun ürün bulunamadı. Bu yüzden alakasız bir ürün önermek yerine ürün bulunamadı bilgisini gösteriyorum."
-        )
-
-    return (
-        f"{label} aradığınızı anladım; ancak mevcut ürün listesinde bu ürün tipine uygun ürün bulunamadı. "
-        "Bu yüzden alakasız bir ürün önermek yerine ürün bulunamadı bilgisini gösteriyorum."
-    )
-
-
-def create_no_budget_match(query_info):
-    budget = query_info.get("budget")
-    product_type = query_info.get("product_type")
-    category = query_info.get("category")
-    label = PRODUCT_TYPE_LABELS.get(product_type, product_type)
-
-    if product_type:
-        return (
-            f"{money(budget)} altında {label} için uygun seçenek bulamadım. "
-            "Bütçeyi biraz artırırsanız tekrar kontrol edebilirim."
-        )
-
-    if category:
-        return (
-            f"{category} kategorisinde {money(budget)} altında uygun ürün bulamadım. "
-            "Bütçeyi artırabilir veya farklı bir kategori seçebilirsiniz."
-        )
-
-    return (
-        f"{money(budget)} altında uygun ürün bulamadım. Kategori belirtirseniz daha net kontrol edebilirim."
-    )
-
-
-def create_product_recommendation_answer(query_info, result_df):
-    if result_df.empty:
-        return "Bu kriterlere uygun ürün bulunamadı."
-
-    top = result_df.iloc[0]
-
-    name = str(top.get("product_name", "Ürün"))
-    price = money(top.get("price", 0))
-    stock = str(top.get("stock_status", ""))
-
-    answer = (
-        f"Talebinize en yakın ürün {name} olarak görünüyor. "
-        f"Liste fiyatı yaklaşık {price}."
-    )
-
-    if stock:
-        answer += f" Stok durumu: {stock}."
-
-    alternatives = result_df.iloc[1:4]["product_name"].astype(str).tolist() if "product_name" in result_df.columns else []
-
-    if alternatives:
-        answer += " Alternatif olarak " + ", ".join(alternatives) + " ürünlerini de değerlendirebilirsiniz."
-
-    return answer
-
-
-# =====================================================
-# MAIN DECISION ENGINE
+# ANA KARAR MOTORU
 # =====================================================
 
 def make_decision(products_df, query_info):
     """
-    Returns:
-    {
-        "decision": str,
-        "query_info": dict,
-        "result_df": DataFrame,
-        "fallback_answer": str
-    }
+    Ana karar motoru.
+    LLM'den önce çalışır.
+    LLM ürün seçmez, sadece burada seçilen ürünü anlatır.
     """
 
     if products_df is None or products_df.empty:
         return {
-            "decision": "NO_PRODUCTS",
-            "query_info": query_info,
             "result_df": pd.DataFrame(),
-            "fallback_answer": "Ürün listesi bulunamadı."
+            "query_info": query_info,
+            "decision": "Ürün verisi bulunamadı.",
+            "fallback_answer": "Ürün verisi bulunamadı.",
         }
 
-    category = query_info.get("category")
-    product_type = query_info.get("product_type")
-    brand = query_info.get("brand")
-    budget = query_info.get("budget")
-    payments = query_info.get("payments", [])
-    is_package = query_info.get("is_package", False)
+    df = products_df.copy()
 
-    has_category = category is not None
-    has_product_type = product_type is not None
-    has_brand = brand is not None
-    has_budget = budget is not None
-    has_payment = len(payments) > 0
+    # 1. Strict ürün tipi filtresi
+    strict_types = detect_strict_product_types(query_info)
+    package_query = is_package_query(query_info)
 
-    # 1. Sadece kategori yazıldıysa ürün önerme, netleştirme sor
-    if has_category and not has_product_type and not has_brand and not has_budget and not has_payment and not is_package:
+    filtered_df = apply_strict_product_filter(df, query_info)
+
+    if filtered_df.empty and strict_types and not package_query:
         return {
-            "decision": "CATEGORY_CLARIFICATION",
-            "query_info": query_info,
             "result_df": pd.DataFrame(),
-            "fallback_answer": create_category_clarification(query_info)
+            "query_info": query_info,
+            "decision": (
+                f"Kullanıcı net olarak {', '.join(strict_types)} istedi. "
+                "Bu ürün tipine uygun katalog ürünü bulunamadı."
+            ),
+            "fallback_answer": (
+                "Talebiniz net bir ürün tipine ait görünüyor ancak katalogda bu ürün tipine uygun ürün bulunamadı."
+            ),
         }
 
-    # 2. Sadece bütçe yazıldıysa kategori sor
-    if has_budget and not has_category and not has_product_type and not has_brand and not has_payment and not is_package:
-        return {
-            "decision": "BUDGET_CLARIFICATION",
-            "query_info": query_info,
-            "result_df": pd.DataFrame(),
-            "fallback_answer": create_budget_clarification(query_info)
-        }
+    df = filtered_df
 
-    filtered = products_df.copy()
+    # 2. Skorlama
+    df["score"] = df.apply(lambda row: score_product(row, query_info), axis=1)
 
-    # 3. Kategori filtresi
-    if has_category:
-        category_df = filter_by_category(filtered, category)
+    # 3. Çok düşük skorları ele
+    if strict_types and not package_query:
+        df = df[df["score"] > 0]
+    else:
+        max_score = df["score"].max() if not df.empty else 0
 
-        if not category_df.empty:
-            filtered = category_df
+        if max_score > 0:
+            df = df[df["score"] >= max_score * 0.35]
 
-    # 4. Ürün tipi varsa strict filtre
-    if has_product_type:
-        type_df = filter_by_product_type(filtered, product_type)
+    # 4. Sıralama
+    if not df.empty:
+        df = df.sort_values("score", ascending=False)
 
-        if type_df.empty:
-            return {
-                "decision": "NO_PRODUCT_TYPE_MATCH",
-                "query_info": query_info,
-                "result_df": pd.DataFrame(),
-                "fallback_answer": create_no_product_type_match(query_info)
-            }
+    decision_lines = []
 
-        filtered = type_df
+    if strict_types and not package_query:
+        decision_lines.append(
+            f"Strict ürün filtresi aktif: sadece {', '.join(strict_types)} ürünleri değerlendirildi."
+        )
 
-    # 5. Marka varsa filtrele
-    if has_brand:
-        brand_df = filter_by_brand(filtered, brand)
+    if package_query:
+        decision_lines.append("Paket / çeyiz isteği algılandı, çoklu kategori değerlendirmesine izin verildi.")
 
-        if not brand_df.empty:
-            filtered = brand_df
+    if query_info.get("budget"):
+        decision_lines.append(f"Bütçe dikkate alındı: {money(query_info.get('budget'))}.")
 
-    # 6. Bütçe varsa strict bütçe filtresi
-    if has_budget:
-        budget_df = filter_by_budget(filtered, budget)
+    if query_info.get("payment_priority"):
+        decision_lines.append(f"Ödeme önceliği dikkate alındı: {query_info.get('payment_priority')}.")
 
-        if budget_df.empty:
-            return {
-                "decision": "NO_BUDGET_MATCH",
-                "query_info": query_info,
-                "result_df": pd.DataFrame(),
-                "fallback_answer": create_no_budget_match(query_info)
-            }
-
-        filtered = budget_df
-
-    # 7. Basit sıralama
-    if "price" in filtered.columns:
-        filtered = filtered.copy()
-        filtered["decision_price"] = filtered["price"].apply(safe_number)
-        filtered = filtered.sort_values("decision_price", ascending=True)
-
-    result_df = filtered.head(5).copy()
+    if not decision_lines:
+        decision_lines.append("Ürünler niyet, kategori, ödeme ve stok uygunluğuna göre sıralandı.")
 
     return {
-        "decision": "PRODUCT_RECOMMENDATION",
+        "result_df": df.head(8),
         "query_info": query_info,
-        "result_df": result_df,
-        "fallback_answer": create_product_recommendation_answer(query_info, result_df)
+        "decision": " ".join(decision_lines),
+        "fallback_answer": "Talebinize göre en uygun ürünler listelendi.",
     }
+
+
+# =====================================================
+# TEST
+# =====================================================
+
+if __name__ == "__main__":
+    test_df = pd.DataFrame(
+        [
+            {
+                "product_name": "Beko No Frost Buzdolabı 500 L",
+                "category": "Beyaz Eşya",
+                "brand": "Beko",
+                "price": 18500,
+                "stock_status": "Stokta",
+                "description": "No Frost geniş hacimli buzdolabı",
+                "features": "No Frost, sessiz çalışma",
+                "use_case": "Çeyiz, ev",
+                "bank_transfer_price": 17650,
+                "installment_6_total": 19500,
+                "senet_total_price": 21900,
+                "senet_monthly_9": 2433,
+            },
+            {
+                "product_name": "Samsung 50 inç Akıllı Smart TV",
+                "category": "Televizyon",
+                "brand": "Samsung",
+                "price": 12900,
+                "stock_status": "Stokta",
+                "description": "Smart TV 4K",
+                "features": "4K ekran",
+                "use_case": "Salon",
+                "bank_transfer_price": 12490,
+                "installment_6_total": 13700,
+                "senet_total_price": 15900,
+                "senet_monthly_9": 1766,
+            },
+        ]
+    )
+
+    test_query = {
+        "raw_query": "Buzdolabı senetle olur mu?",
+        "normalized_query": "buzdolabi senetle olur mu",
+        "budget": None,
+        "payments": ["senet"],
+        "product_types": ["buzdolabi"],
+        "payment_priority": "lowest_monthly",
+    }
+
+    result = make_decision(test_df, test_query)
+
+    print(result["decision"])
+    print(result["result_df"][["product_name", "score"]])

@@ -3,14 +3,25 @@ import re
 import html
 import unicodedata
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
-
 
 # =====================================================
-# OPSİYONEL PROJE IMPORTLARI
+# STRICT PRODUCT FILTER ENGINE
+# =====================================================
+
+try:
+    from src.product_filter_engine import strict_filter_products
+    PRODUCT_FILTER_READY = True
+except Exception as e:
+    print("Product filter engine yükleme hatası:", e)
+    PRODUCT_FILTER_READY = False
+    strict_filter_products = None
+    
+# =====================================================
+# TEMEL TEXT / NUMBER HELPERS
 # =====================================================
 
 def normalize_text(text):
@@ -43,6 +54,10 @@ def money_local(value):
     return f"{safe_number_local(value):,.0f} TL".replace(",", ".")
 
 
+# =====================================================
+# OPSİYONEL PROJE IMPORTLARI
+# =====================================================
+
 try:
     from src.decision_engine import make_decision, safe_number, money
 except Exception:
@@ -52,6 +67,12 @@ except Exception:
     def make_decision(products_df, query_info):
         query = query_info.get("normalized_query", normalize_text(query_info.get("raw_query", "")))
         budget = safe_number(query_info.get("budget", 0))
+
+        brands = query_info.get("brands", []) or []
+        product_types = query_info.get("product_types", []) or []
+        categories = query_info.get("categories", []) or []
+        use_cases = query_info.get("use_cases", []) or []
+        payment_priority = query_info.get("payment_priority")
 
         df = products_df.copy()
 
@@ -63,20 +84,87 @@ except Exception:
                 if len(token) > 2 and token in text:
                     score += 5
 
+            for brand in brands:
+                if normalize_text(brand) in text:
+                    score += 25
+
+            for product_type in product_types:
+                pt = normalize_text(product_type)
+
+                if pt in text:
+                    score += 25
+
+                if pt == "buzdolabi" and ("buzdolabi" in text or "no frost" in text):
+                    score += 30
+
+                if pt == "camasir_makinesi" and "camasir" in text:
+                    score += 30
+
+                if pt == "bulasik_makinesi" and "bulasik" in text:
+                    score += 30
+
+                if pt == "televizyon" and ("televizyon" in text or "smart tv" in text or "tv" in text):
+                    score += 30
+
+                if pt == "laptop" and ("laptop" in text or "bilgisayar" in text or "notebook" in text):
+                    score += 30
+
+                if pt == "telefon" and ("telefon" in text or "iphone" in text or "galaxy" in text):
+                    score += 30
+
+            for category in categories:
+                if normalize_text(category) in text:
+                    score += 18
+
+            for use_case in use_cases:
+                uc = normalize_text(use_case)
+
+                if uc in text:
+                    score += 18
+
+                if uc == "ceyiz" and (
+                    "beyaz esya" in text
+                    or "buzdolabi" in text
+                    or "camasir" in text
+                    or "bulasik" in text
+                    or "supurge" in text
+                ):
+                    score += 18
+
+                if uc == "ogrenci" and (
+                    "laptop" in text
+                    or "telefon" in text
+                    or "tablet" in text
+                    or "bilgisayar" in text
+                ):
+                    score += 16
+
             if budget and safe_number(row.get("price", 0)) <= budget:
-                score += 12
+                score += 18
+
+            if budget and safe_number(row.get("price", 0)) > budget:
+                score -= 10
 
             if "senet" in query and safe_number(row.get("senet_total_price", 0)) > 0:
-                score += 12
+                score += 16
 
             if "havale" in query and safe_number(row.get("bank_transfer_price", 0)) > 0:
-                score += 12
+                score += 16
 
             if "taksit" in query and safe_number(row.get("installment_6_total", 0)) > 0:
-                score += 10
+                score += 14
+
+            if payment_priority == "lowest_monthly" and safe_number(row.get("senet_monthly_9", 0)) > 0:
+                score += 20
+
+            if payment_priority == "lowest_total" and safe_number(row.get("bank_transfer_price", 0)) > 0:
+                score += 18
+
+            if payment_priority == "card_installment" and safe_number(row.get("installment_6_total", 0)) > 0:
+                score += 16
 
             if normalize_text(row.get("stock_status", "")) == "stokta":
-                score += 4
+                score += 6
 
             return score
 
@@ -90,15 +178,57 @@ except Exception:
         return {
             "result_df": df.head(8),
             "query_info": query_info,
-            "decision": "Karar motoru ürünleri sıraladı.",
+            "decision": "Karar motoru ürünleri NLP analizi, bütçe, ödeme tercihi ve stok durumuna göre sıraladı.",
             "fallback_answer": "Talebinize göre en uygun ürünleri listeledim.",
         }
 
 
 try:
-    from src.nlp_engine import analyze_query
-except Exception:
+    from src.nlp_engine import analyze_user_query, analysis_to_short_summary
+    NLP_ENGINE_READY = True
+
     def analyze_query(query):
+        """
+        Eski karar motorunun beklediği analyze_query formatını korur.
+        Ama içeride yeni ultra NLP motorunu kullanır.
+        """
+        analysis = analyze_user_query(query)
+
+        payments = []
+
+        if analysis.get("payment_priority") == "lowest_monthly":
+            payments.append("senet")
+
+        if analysis.get("payment_priority") == "lowest_total":
+            payments.append("havale")
+
+        if analysis.get("payment_priority") == "card_installment":
+            payments.append("taksit")
+
+        return {
+            "raw_query": query,
+            "normalized_query": analysis.get("normalized_query", normalize_text(query)),
+            "budget": analysis.get("budget"),
+            "payments": payments,
+            "intents": analysis.get("intents", []),
+            "primary_intent": analysis.get("primary_intent", "general_question"),
+            "brands": analysis.get("brands", []),
+            "product_types": analysis.get("product_types", []),
+            "categories": analysis.get("categories", []),
+            "use_cases": analysis.get("use_cases", []),
+            "payment_priority": analysis.get("payment_priority"),
+            "order_number": analysis.get("order_number"),
+            "urgency": analysis.get("urgency"),
+            "sentiment": analysis.get("sentiment"),
+            "confidence": analysis.get("confidence", 0),
+            "nlp_analysis": analysis,
+        }
+
+except Exception as e:
+    print("Ultra NLP yüklenemedi, basit NLP kullanılacak:", e)
+    NLP_ENGINE_READY = False
+
+    def analyze_user_query(query):
         q = normalize_text(query)
 
         nums = re.findall(r"\d+", q.replace(".", ""))
@@ -108,22 +238,128 @@ except Exception:
             big_nums = [int(x) for x in nums if len(x) >= 4]
             budget = max(big_nums) if big_nums else None
 
+        intents = []
+
+        if any(x in q for x in ["senet", "senetli", "elden odeme", "aylik"]):
+            intents.append("senet")
+
+        if any(x in q for x in ["havale", "pesin", "nakit", "en uygun"]):
+            intents.append("cash_transfer")
+
+        if any(x in q for x in ["taksit", "kart"]):
+            intents.append("installment")
+
+        if any(x in q for x in ["stok", "var mi"]):
+            intents.append("stock")
+
+        if any(x in q for x in ["siparis", "nvd", "kargo", "takip"]):
+            intents.append("order_tracking")
+
+        if not intents:
+            intents = ["general_question"]
+
+        payment_priority = None
+
+        if any(x in q for x in ["senet", "senetli", "aylik", "elden odeme"]):
+            payment_priority = "lowest_monthly"
+        elif any(x in q for x in ["havale", "pesin", "nakit", "en uygun"]):
+            payment_priority = "lowest_total"
+        elif any(x in q for x in ["taksit", "kart"]):
+            payment_priority = "card_installment"
+
+        order_number = None
+        order_match = re.search(r"NVD[-\s]?\d+", str(query).upper())
+
+        if order_match:
+            order_number = order_match.group(0).replace(" ", "-")
+
+        brands = []
+        for brand in ["beko", "vestel", "samsung", "apple", "philips", "arcelik", "lenovo", "hp", "asus"]:
+            if brand in q:
+                brands.append(brand)
+
+        product_types = []
+
+        if any(x in q for x in ["buzdolabi", "buz dolabi", "no frost"]):
+            product_types.append("buzdolabi")
+
+        if any(x in q for x in ["camasir", "camasir makinesi"]):
+            product_types.append("camasir_makinesi")
+
+        if any(x in q for x in ["bulasik", "bulasik makinesi"]):
+            product_types.append("bulasik_makinesi")
+
+        if any(x in q for x in ["tv", "televizyon", "smart tv"]):
+            product_types.append("televizyon")
+
+        if any(x in q for x in ["laptop", "bilgisayar", "notebook"]):
+            product_types.append("laptop")
+
+        if any(x in q for x in ["telefon", "iphone", "galaxy"]):
+            product_types.append("telefon")
+
+        use_cases = []
+
+        if "ceyiz" in q or "ev diziyorum" in q:
+            use_cases.append("ceyiz")
+
+        if "ogrenci" in q:
+            use_cases.append("ogrenci")
+
+        return {
+            "original_query": query,
+            "normalized_query": q,
+            "intents": intents,
+            "primary_intent": intents[0],
+            "brands": brands,
+            "product_types": product_types,
+            "categories": [],
+            "use_cases": use_cases,
+            "budget": budget,
+            "payment_priority": payment_priority,
+            "order_number": order_number,
+            "urgency": "normal",
+            "sentiment": "neutral",
+            "confidence": 55,
+        }
+
+    def analysis_to_short_summary(analysis):
+        return (
+            f"Niyet: {analysis.get('primary_intent')} | "
+            f"Bütçe: {analysis.get('budget')} | "
+            f"Ödeme: {analysis.get('payment_priority')} | "
+            f"Güven: %{analysis.get('confidence', 0)}"
+        )
+
+    def analyze_query(query):
+        analysis = analyze_user_query(query)
+
         payments = []
 
-        if "senet" in q or "elden odeme" in q:
+        if analysis.get("payment_priority") == "lowest_monthly":
             payments.append("senet")
 
-        if "havale" in q:
+        if analysis.get("payment_priority") == "lowest_total":
             payments.append("havale")
 
-        if "taksit" in q:
+        if analysis.get("payment_priority") == "card_installment":
             payments.append("taksit")
 
         return {
             "raw_query": query,
-            "normalized_query": q,
-            "budget": budget,
+            "normalized_query": analysis.get("normalized_query", normalize_text(query)),
+            "budget": analysis.get("budget"),
             "payments": payments,
+            "intents": analysis.get("intents", []),
+            "primary_intent": analysis.get("primary_intent", "general_question"),
+            "brands": analysis.get("brands", []),
+            "product_types": analysis.get("product_types", []),
+            "categories": analysis.get("categories", []),
+            "use_cases": analysis.get("use_cases", []),
+            "payment_priority": analysis.get("payment_priority"),
+            "order_number": analysis.get("order_number"),
+            "confidence": analysis.get("confidence", 0),
+            "nlp_analysis": analysis,
         }
 
 
@@ -138,20 +374,24 @@ except Exception:
         return {}
 
     def apply_customer_context(query_info, context):
-        return query_info
+        merged = dict(context or {})
+        merged.update(query_info or {})
+        return merged
 
     def update_customer_context(context, query_info):
         new_context = dict(context or {})
-        new_context.update(query_info or {})
+        for key, value in (query_info or {}).items():
+            if value not in [None, "", [], {}]:
+                new_context[key] = value
         return new_context
 
 
 try:
-    from src.package_engine import is_package_request, make_package_decision
+    from src.package_engine import is_package_request, make_package_decision, generate_package_text
 except Exception:
     def is_package_request(query_info):
         q = normalize_text(query_info.get("raw_query", "") or query_info.get("normalized_query", ""))
-        return any(word in q for word in ["ceyiz", "paket", "set", "ev diziyorum"])
+        return any(word in q for word in ["ceyiz", "paket", "set", "ev diziyorum", "ev kuruyorum"])
 
     def make_package_decision(products_df, query_info):
         result = make_decision(products_df, query_info)
@@ -160,16 +400,252 @@ except Exception:
         if not df.empty:
             df["package_group"] = df["category"]
 
+            q = normalize_text(query_info.get("raw_query", "") or query_info.get("normalized_query", ""))
+
+            if "ceyiz" in q:
+                preferred = df[
+                    df["category"].astype(str).apply(normalize_text).isin(
+                        ["beyaz esya", "televizyon", "kucuk ev aleti"]
+                    )
+                ]
+
+                if not preferred.empty:
+                    df = preferred
+
+        package_total = float(df.head(8)["price"].sum()) if (not df.empty and "price" in df.columns) else 0
         result["result_df"] = df.head(8)
-        result["decision"] = "Paket / çeyiz talebi algılandı."
+        result["decision"] = "Paket / çeyiz talebi algılandı ve ürünler paket mantığıyla sıralandı."
+        result["package_summary"] = {
+            "package_type": "fallback_package",
+            "requested_budget": query_info.get("budget"),
+            "selected_total": package_total,
+            "selected_count": len(df.head(8)) if not df.empty else 0,
+            "budget_status": "Fallback paket motoru çalıştı.",
+            "missing_groups": [],
+        }
         return result
+
+    def generate_package_text(decision_result):
+        df = decision_result.get("result_df", pd.DataFrame())
+        summary = decision_result.get("package_summary", {})
+
+        if df is None or df.empty:
+            return "Paket oluşturmak için uygun ürün bulunamadı."
+
+        lines = ["Paket önerisi hazırlandı.", ""]
+
+        for _, row in df.iterrows():
+            group = row.get("package_group", row.get("category", "Ürün"))
+            lines.append(f"- {group}: {row.get('product_name')} | {money(row.get('price', 0))} | Stok: {row.get('stock_status')}")
+
+        lines.append("")
+        lines.append(f"Paket toplamı: {money(summary.get('selected_total', df['price'].sum() if 'price' in df.columns else 0))}")
+
+        if summary.get("requested_budget"):
+            lines.append(f"Talep edilen bütçe: {money(summary.get('requested_budget'))}")
+            lines.append(f"Bütçe durumu: {summary.get('budget_status', '-')}")
+
+        if summary.get("missing_groups"):
+            lines.append("Eksik kalan kategoriler: " + ", ".join(summary.get("missing_groups")))
+
+        return "\n".join(lines)
 
 
 try:
-    from src.semantic_engine import apply_semantic_reranking
-except Exception:
+    from src.memory_engine import (
+        update_user_memory,
+        apply_memory_to_query,
+        log_user_behavior,
+        load_behavior_log,
+        memory_summary_text,
+        get_user_memory,
+    )
+    MEMORY_ENGINE_READY = True
+except Exception as e:
+    print("Memory engine yükleme hatası:", e)
+    MEMORY_ENGINE_READY = False
+
+    def update_user_memory(user_id, query_info, result_df=None):
+        return {}
+
+    def apply_memory_to_query(user_id, query_info):
+        return query_info, {
+            "active": False,
+            "reason": "Memory engine aktif değil.",
+            "used_fields": [],
+        }
+
+    def log_user_behavior(*args, **kwargs):
+        return {}
+
+    def load_behavior_log(limit=100):
+        return pd.DataFrame()
+
+    def memory_summary_text(user_id):
+        return "Memory engine aktif değil."
+
+    def get_user_memory(user_id):
+        return {}
+
+
+try:
+    from src.metrics_engine import (
+        calculate_ai_metrics,
+        metrics_to_dataframe,
+        get_recent_activity,
+        get_guardrail_report,
+        get_product_interest_report,
+        get_payment_interest_report,
+        get_top_product_report,
+    )
+    METRICS_ENGINE_READY = True
+except Exception as e:
+    print("Metrics engine yükleme hatası:", e)
+    METRICS_ENGINE_READY = False
+
+    def calculate_ai_metrics():
+        return {
+            "total_queries": 0,
+            "customer_queries": 0,
+            "store_queries": 0,
+            "guardrail_events": 0,
+            "strict_filter_events": 0,
+            "semantic_events": 0,
+            "package_events": 0,
+            "top_product_types": [],
+            "top_brands": [],
+            "top_payments": [],
+            "top_products": [],
+            "top_guardrail_categories": [],
+            "last_updated": "-",
+        }
+
+    def metrics_to_dataframe(metric_list, name_col="Alan", value_col="Değer"):
+        return pd.DataFrame(metric_list or [], columns=[name_col, value_col])
+
+    def get_recent_activity(limit=50):
+        return pd.DataFrame()
+
+    def get_guardrail_report():
+        return pd.DataFrame()
+
+    def get_product_interest_report():
+        return pd.DataFrame()
+
+    def get_payment_interest_report():
+        return pd.DataFrame()
+
+    def get_top_product_report():
+        return pd.DataFrame()
+
+
+try:
+    from src.vision_engine import (
+        visual_search_products,
+        vision_query_text,
+        detect_visual_product_type,
+        build_visual_query_from_image,
+    )
+    VISION_ENGINE_READY = True
+except Exception as e:
+    print("Vision engine yükleme hatası:", e)
+    VISION_ENGINE_READY = False
+
+    def visual_search_products(products_df, description="", filename="", top_k=8, detected_types=None):
+        return pd.DataFrame(), {
+            "active": False,
+            "reason": "Vision engine aktif değil.",
+            "detected_types": detected_types or [],
+            "filename": filename,
+            "description": description,
+        }
+
+    def vision_query_text(description="", filename="", detected_types=None, gemini_description="", keywords=None):
+        parts = []
+        if detected_types:
+            parts.extend(detected_types)
+        if keywords:
+            parts.extend(keywords)
+        if gemini_description:
+            parts.append(gemini_description)
+        if description:
+            parts.append(description)
+        if filename:
+            parts.append(filename)
+        return " ".join(parts).strip()
+
+    def detect_visual_product_type(description="", filename=""):
+        return []
+
+    def build_visual_query_from_image(image_bytes=None, filename="", manual_description="", manual_type_text=""):
+        generated_query = " ".join([manual_type_text or "", manual_description or "", filename or ""]).strip()
+        return {
+            "generated_query": generated_query,
+            "combined_description": generated_query,
+            "detected_types": detect_visual_product_type(generated_query, filename),
+            "gemini_result": {
+                "success": False,
+                "reason": "Vision engine aktif değil.",
+                "product_type": None,
+                "detected_types": [],
+                "description": "",
+                "keywords": [],
+                "confidence": 0,
+            },
+        }
+
+
+try:
+    from src.semantic_engine import (
+        apply_semantic_reranking,
+        semantic_candidate_search,
+        explain_semantic_match,
+    )
+    SEMANTIC_ENGINE_READY = True
+except Exception as e:
+    print("Semantic engine yükleme hatası:", e)
+    SEMANTIC_ENGINE_READY = False
+
     def apply_semantic_reranking(result_df, user_query):
         return result_df
+
+    def semantic_candidate_search(products_df, user_query, top_k=12, min_score=0.01):
+        return products_df
+
+    def explain_semantic_match(row, user_query):
+        return "Semantic engine aktif değil."
+
+
+try:
+    from src.guardrail_engine import analyze_guardrail
+    GUARDRAIL_READY = True
+except Exception as e:
+    print("Guardrail engine yükleme hatası:", e)
+    GUARDRAIL_READY = False
+
+    def analyze_guardrail(user_query, mode="customer"):
+        return {
+            "blocked": False,
+            "risk_level": "low",
+            "category": "safe",
+            "reason": "Guardrail aktif değil.",
+            "safe_response": None,
+            "checked_at": None,
+            "mode": mode,
+        }
+
+
+try:
+    from src.response_engine import (
+        generate_premium_customer_answer,
+        generate_premium_store_answer,
+    )
+    RESPONSE_ENGINE_READY = True
+except Exception as e:
+    print("Response engine yükleme hatası:", e)
+    RESPONSE_ENGINE_READY = False
+    generate_premium_customer_answer = None
+    generate_premium_store_answer = None
 
 
 try:
@@ -191,16 +667,18 @@ except Exception:
 
 
 try:
-    from llm_service import generate_store_llm_answer, product_row_to_dict
+    from llm_service import (
+        generate_store_llm_answer,
+        generate_customer_llm_answer,
+        product_row_to_dict,
+        is_llm_ready,
+    )
+    LLM_READY = is_llm_ready()
 
-    try:
-        from llm_service import is_llm_ready
-        LLM_READY = is_llm_ready()
-    except Exception:
-        LLM_READY = True
-
-except Exception:
+except Exception as e:
+    print("LLM servis yükleme hatası:", e)
     generate_store_llm_answer = None
+    generate_customer_llm_answer = None
     product_row_to_dict = None
     LLM_READY = False
 
@@ -216,7 +694,7 @@ except Exception:
 # =====================================================
 
 st.set_page_config(
-    page_title="Nevade AI Commerce Hub",
+    page_title="Nevade AI Premium Commerce Hub",
     page_icon="N",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -224,394 +702,38 @@ st.set_page_config(
 
 
 # =====================================================
-# ULTRA PREMIUM CSS
+# EXTERNAL CSS LOADER
 # =====================================================
 
-st.markdown(
+def load_external_css(css_path="assets/app_design.css"):
     """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    Premium CSS yükleyici.
+    Canlı ortamda ana yol assets/app_design.css olmalı.
+    Yerel testte dosya farklı konumdaysa sessizce alternatifleri de dener.
+    """
+    candidate_paths = [
+        Path(css_path),
+        Path("app_design.css"),
+        Path("assets") / "app_design.css",
+        Path("Yapıştırılan kod.css"),
+    ]
 
-    header[data-testid="stHeader"],
-    div[data-testid="stToolbar"],
-    div[data-testid="stDecoration"],
-    div[data-testid="stStatusWidget"],
-    #MainMenu,
-    footer {
-        display: none !important;
-        visibility: hidden !important;
-    }
+    for css_file in candidate_paths:
+        if css_file.exists():
+            st.markdown(
+                f"<style>{css_file.read_text(encoding='utf-8')}</style>",
+                unsafe_allow_html=True,
+            )
+            return
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-    }
+    st.warning(
+        "CSS dosyası bulunamadı. Lütfen premium tasarım dosyasını "
+        "assets/app_design.css olarak kaydedin."
+    )
 
-    .block-container {
-        max-width: 1680px;
-        padding-top: 0rem !important;
-        padding-bottom: 4rem !important;
-    }
 
-    .stApp {
-        background:
-            radial-gradient(circle at 8% 8%, rgba(30, 64, 175, 0.20), transparent 28%),
-            radial-gradient(circle at 92% 8%, rgba(124, 58, 237, 0.18), transparent 32%),
-            radial-gradient(circle at 48% 95%, rgba(245, 158, 11, 0.12), transparent 34%),
-            linear-gradient(135deg, #f8fafc 0%, #eef2ff 42%, #f8fafc 100%);
-        color: #0f172a;
-    }
+load_external_css()
 
-    .stApp::before {
-        content: "";
-        position: fixed;
-        inset: 0;
-        background-image:
-            linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
-        background-size: 42px 42px;
-        mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent 75%);
-        pointer-events: none;
-        z-index: 0;
-    }
-
-    section.main > div {
-        position: relative;
-        z-index: 1;
-    }
-
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 32px !important;
-        border: 1px solid rgba(255, 255, 255, 0.75) !important;
-        background:
-            linear-gradient(145deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72)) !important;
-        box-shadow:
-            0 28px 80px rgba(15, 23, 42, 0.08),
-            inset 0 1px 0 rgba(255,255,255,0.92);
-        backdrop-filter: blur(28px);
-    }
-
-    .stButton > button {
-        border-radius: 18px !important;
-        min-height: 50px !important;
-        font-weight: 800 !important;
-        font-size: 13px !important;
-        letter-spacing: 0.2px;
-        border: 1px solid rgba(226, 232, 240, 0.95) !important;
-        background:
-            linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92)) !important;
-        color: #1e3a8a !important;
-        box-shadow:
-            0 14px 34px rgba(15, 23, 42, 0.055),
-            inset 0 1px 0 rgba(255,255,255,0.9);
-        transition: all 0.22s ease;
-    }
-
-    .stButton > button:hover {
-        transform: translateY(-2px) scale(1.01);
-        background:
-            linear-gradient(135deg, #1e3a8a 0%, #4c1d95 55%, #7c2d12 100%) !important;
-        color: #ffffff !important;
-        border-color: transparent !important;
-        box-shadow:
-            0 24px 55px rgba(30, 58, 138, 0.26),
-            0 8px 20px rgba(124, 58, 237, 0.14);
-    }
-
-    .stTextInput input,
-    .stTextArea textarea,
-    .stSelectbox div[data-baseweb="select"] > div {
-        border-radius: 18px !important;
-        border: 1px solid rgba(203, 213, 225, 0.82) !important;
-        background: rgba(255,255,255,0.92) !important;
-        box-shadow:
-            inset 0 1px 2px rgba(15,23,42,0.035),
-            0 12px 30px rgba(15, 23, 42, 0.035);
-        min-height: 50px !important;
-        font-size: 14px !important;
-    }
-
-    div[data-testid="stMetric"] {
-        background:
-            radial-gradient(circle at 0% 0%, rgba(30,64,175,0.08), transparent 38%),
-            linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.78));
-        border: 1px solid rgba(255,255,255,0.78);
-        border-radius: 28px;
-        padding: 26px;
-        box-shadow:
-            0 24px 65px rgba(15, 23, 42, 0.07),
-            inset 0 1px 0 rgba(255,255,255,0.9);
-    }
-
-    div[data-testid="stMetric"] label {
-        color: #64748b !important;
-        font-weight: 800 !important;
-    }
-
-    div[data-testid="stMetricValue"] {
-        color: #0f172a !important;
-        font-weight: 950 !important;
-        letter-spacing: -1px;
-    }
-
-    .brand-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 18px;
-        border-radius: 999px;
-        background:
-            linear-gradient(135deg, rgba(30,64,175,0.10), rgba(124,58,237,0.10));
-        border: 1px solid rgba(30, 64, 175, 0.16);
-        color: #1e3a8a;
-        font-size: 11px;
-        font-weight: 950;
-        text-transform: uppercase;
-        letter-spacing: 1.6px;
-        margin-bottom: 18px;
-        box-shadow: 0 12px 30px rgba(30,64,175,0.08);
-    }
-
-    .hero-title {
-        font-size: clamp(42px, 5vw, 72px);
-        line-height: 0.98;
-        letter-spacing: -3.2px;
-        font-weight: 950;
-        color: #020617;
-        margin: 0 0 24px 0;
-    }
-
-    .hero-title span {
-        background: linear-gradient(90deg, #1e3a8a 0%, #6d28d9 48%, #b45309 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .hero-subtitle {
-        max-width: 920px;
-        color: #475569;
-        font-size: 18px;
-        line-height: 1.78;
-        font-weight: 500;
-        margin-bottom: 32px;
-    }
-
-    .section-head {
-        font-size: 38px;
-        line-height: 1.12;
-        font-weight: 950;
-        color: #020617;
-        margin-bottom: 8px;
-        letter-spacing: -1.4px;
-    }
-
-    .section-desc {
-        color: #475569;
-        font-size: 15.5px;
-        line-height: 1.72;
-        margin-bottom: 26px;
-        max-width: 950px;
-    }
-
-    .module-card,
-    .premium-card,
-    .order-card,
-    .quick-result-box,
-    .success-hero {
-        background:
-            radial-gradient(circle at 0% 0%, rgba(30,64,175,0.08), transparent 38%),
-            linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.78));
-        border: 1px solid rgba(255,255,255,0.82);
-        border-radius: 30px;
-        padding: 28px;
-        box-shadow:
-            0 28px 70px rgba(15, 23, 42, 0.07),
-            inset 0 1px 0 rgba(255,255,255,0.9);
-    }
-
-    .module-card {
-        min-height: 210px;
-        transition: 0.22s ease;
-    }
-
-    .module-card:hover {
-        transform: translateY(-4px);
-        box-shadow:
-            0 38px 90px rgba(15, 23, 42, 0.11),
-            inset 0 1px 0 rgba(255,255,255,0.95);
-    }
-
-    .module-card h3,
-    .premium-card h3 {
-        margin: 0 0 12px 0;
-        color: #020617;
-        font-size: 23px;
-        font-weight: 950;
-        letter-spacing: -0.5px;
-    }
-
-    .module-card p,
-    .premium-card p {
-        color: #475569;
-        line-height: 1.72;
-        font-size: 14.5px;
-        margin: 0;
-        font-weight: 500;
-    }
-
-    .product-price {
-        font-size: 36px;
-        font-weight: 950;
-        background: linear-gradient(90deg, #1e3a8a, #6d28d9);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin: 12px 0;
-        letter-spacing: -1px;
-    }
-
-    .topbar-title {
-        font-size: 27px;
-        font-weight: 950;
-        color: #020617;
-        letter-spacing: -0.9px;
-    }
-
-    .mini-cart {
-        background:
-            radial-gradient(circle at 0% 0%, rgba(245,158,11,0.16), transparent 38%),
-            radial-gradient(circle at 100% 0%, rgba(124,58,237,0.11), transparent 38%),
-            linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72));
-        border: 1px solid rgba(255,255,255,0.78);
-        border-radius: 30px;
-        padding: 20px 24px;
-        margin: 14px 0 24px 0;
-        box-shadow:
-            0 26px 65px rgba(15,23,42,0.07),
-            inset 0 1px 0 rgba(255,255,255,0.9);
-        backdrop-filter: blur(24px);
-    }
-
-    .mini-cart-title {
-        color: #020617;
-        font-size: 17px;
-        font-weight: 950;
-        margin-bottom: 5px;
-        letter-spacing: -0.3px;
-    }
-
-    .mini-cart-sub {
-        color: #475569;
-        font-size: 13.5px;
-        line-height: 1.65;
-        font-weight: 600;
-    }
-
-    .package-box {
-        background:
-            linear-gradient(135deg, rgba(124,58,237,0.09), rgba(30,64,175,0.06));
-        border: 1px solid rgba(124,58,237,0.18);
-        border-radius: 18px;
-        padding: 13px 17px;
-        color: #4c1d95;
-        font-size: 13.5px;
-        font-weight: 900;
-        margin-bottom: 14px;
-        box-shadow: 0 14px 34px rgba(124,58,237,0.07);
-    }
-
-    .decision-box,
-    .soft-note {
-        background:
-            linear-gradient(145deg, rgba(255,255,255,0.94), rgba(255,255,255,0.76));
-        border: 1px solid rgba(255,255,255,0.80);
-        border-radius: 22px;
-        padding: 18px 22px;
-        color: #475569;
-        font-size: 13.5px;
-        line-height: 1.75;
-        box-shadow: 0 18px 44px rgba(15,23,42,0.045);
-    }
-
-    .decision-box {
-        background:
-            linear-gradient(135deg, rgba(30,64,175,0.07), rgba(124,58,237,0.06));
-        border-color: rgba(30,64,175,0.14);
-        color: #1e3a8a;
-        font-weight: 700;
-    }
-
-    .order-title {
-        font-size: 23px;
-        font-weight: 950;
-        color: #020617;
-        margin-bottom: 8px;
-        letter-spacing: -0.5px;
-    }
-
-    .order-detail {
-        color: #475569;
-        font-size: 14px;
-        line-height: 1.82;
-        font-weight: 500;
-    }
-
-    .status-pill {
-        display: inline-block;
-        padding: 8px 14px;
-        border-radius: 999px;
-        background:
-            linear-gradient(135deg, rgba(34,197,94,0.10), rgba(30,64,175,0.08));
-        color: #166534;
-        border: 1px solid rgba(34,197,94,0.20);
-        font-size: 12px;
-        font-weight: 950;
-        margin-bottom: 10px;
-    }
-
-    .luxury-kpi {
-        background: linear-gradient(135deg, #020617 0%, #1e1b4b 48%, #451a03 100%);
-        border-radius: 34px;
-        padding: 28px;
-        color: white;
-        box-shadow:
-            0 36px 90px rgba(15, 23, 42, 0.26),
-            inset 0 1px 0 rgba(255,255,255,0.14);
-        border: 1px solid rgba(255,255,255,0.16);
-    }
-
-    .luxury-kpi h3 {
-        font-size: 22px;
-        font-weight: 950;
-        margin: 0 0 8px 0;
-        letter-spacing: -0.5px;
-    }
-
-    .luxury-kpi p {
-        color: rgba(255,255,255,0.72);
-        font-size: 14px;
-        line-height: 1.7;
-        margin: 0;
-    }
-
-    .premium-divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(30,64,175,0.18), rgba(124,58,237,0.18), transparent);
-        margin: 24px 0;
-    }
-
-    @media(max-width: 980px) {
-        .hero-title {
-            font-size: 42px;
-            letter-spacing: -1.6px;
-        }
-
-        .section-head {
-            font-size: 30px;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 
 # =====================================================
@@ -626,6 +748,7 @@ def init_state(key, value):
 init_state("logged_in", False)
 init_state("user_email", "")
 init_state("user_role", "")
+init_state("current_user", {})
 init_state("page", "dashboard")
 init_state("cart", [])
 init_state("cart_notice", "")
@@ -635,6 +758,14 @@ init_state("store_messages", [])
 init_state("last_results", pd.DataFrame())
 init_state("last_query_info", {})
 init_state("last_decision", "")
+init_state("last_filter_info", {})
+init_state("last_semantic_info", {})
+init_state("last_package_summary", {})
+init_state("last_guardrail_info", {})
+init_state("last_memory_info", {})
+init_state("last_vision_info", {})
+init_state("last_uploaded_image_name", "")
+init_state("last_fallback_answer", "")
 init_state("support_result", None)
 init_state("quick_action_history", [])
 init_state("customer_context", create_empty_customer_context())
@@ -814,6 +945,46 @@ def demo_products():
                 "product_link": "https://www.nevade.com/",
                 "image_link": "",
             },
+            {
+                "product_id": "P005",
+                "product_name": "Lenovo IdeaPad Slim 5 Laptop",
+                "category": "Bilgisayar",
+                "brand": "Lenovo",
+                "price": 24900,
+                "cash_price": 24300,
+                "bank_transfer_price": 23950,
+                "card_price": 24900,
+                "installment_6_total": 26300,
+                "senet_total_price": 29700,
+                "senet_monthly_9": 3300,
+                "stock_status": "Stokta",
+                "payment_options": "Kart, Havale, Taksit, Senet",
+                "use_case": "Öğrenci, ofis, günlük kullanım",
+                "features": "16 GB RAM, 512 GB SSD, hafif kasa",
+                "description": "Öğrenci ve ofis kullanımı için dengeli fiyat performans laptop.",
+                "product_link": "https://www.nevade.com/",
+                "image_link": "",
+            },
+            {
+                "product_id": "P006",
+                "product_name": "Samsung Galaxy A55 256 GB Telefon",
+                "category": "Cep Telefonu",
+                "brand": "Samsung",
+                "price": 19900,
+                "cash_price": 19300,
+                "bank_transfer_price": 18950,
+                "card_price": 19900,
+                "installment_6_total": 21100,
+                "senet_total_price": 23400,
+                "senet_monthly_9": 2600,
+                "stock_status": "Stokta",
+                "payment_options": "Kart, Havale, Taksit, Senet",
+                "use_case": "Günlük kullanım, sosyal medya, kamera",
+                "features": "256 GB hafıza, AMOLED ekran, güçlü batarya",
+                "description": "Günlük kullanım ve sosyal medya için uygun güçlü telefon.",
+                "product_link": "https://www.nevade.com/",
+                "image_link": "",
+            },
         ]
     )
 
@@ -866,6 +1037,7 @@ def prepare_products(df):
         "description",
         "product_link",
         "image_link",
+        "warranty",
     ]
 
     for col in text_cols:
@@ -884,6 +1056,8 @@ def prepare_products(df):
         + df["features"].astype(str)
         + " "
         + df["payment_options"].astype(str)
+        + " "
+        + df["use_case"].astype(str)
     ).apply(normalize_text)
 
     return df
@@ -1019,6 +1193,69 @@ def order_text(order):
 # AI FONKSİYONLARI
 # =====================================================
 
+def is_clean_ai_answer(answer):
+    """
+    LLM cevabı müşteriye/personeline gösterilmeye uygun mu kontrol eder.
+    Prompt sızıntısı, İngilizce/Çince karışması, çok kısa cevap gibi durumları engeller.
+    """
+
+    if not answer:
+        return False
+
+    raw = str(answer).strip()
+    text = normalize_text(raw)
+
+    if len(raw) < 80:
+        return False
+
+    bad_patterns = [
+        "prompt",
+        "system message",
+        "sistem mesaji",
+        "kurallar",
+        "cevap formati",
+        "as an ai",
+        "i cannot",
+        "i can't",
+        "json",
+        "```",
+        "customer relationship",
+        "management",
+        "business manifest",
+        "travel manifest",
+        "nevada",
+        "以下",
+        "使用",
+        "doğrulanmış ürün verisi",
+        "dogrulanmis urun verisi",
+    ]
+
+    for pattern in bad_patterns:
+        if normalize_text(pattern) in text or pattern in raw:
+            return False
+
+    if re.search(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", raw):
+        return False
+
+    turkish_signals = [
+        "müşteri", "musteri",
+        "ürün", "urun",
+        "ödeme", "odeme",
+        "stok",
+        "fiyat",
+        "taksit",
+        "senet",
+        "havale",
+        "personel",
+        "sipariş", "siparis",
+        "kargo",
+    ]
+
+    hit = sum(1 for word in turkish_signals if normalize_text(word) in text)
+
+    return hit >= 2
+
+
 def get_payment_values(row):
     price = safe_number(row.get("price", 0))
     cash = safe_number(row.get("cash_price", 0))
@@ -1056,9 +1293,9 @@ def detect_store_intent(query):
     intents = []
 
     checks = {
-        "senet_uygunluk": ["senet", "elden odeme"],
-        "odeme": ["odeme", "havale", "kart", "taksit", "pesin"],
-        "stok": ["stok", "var mi"],
+        "senet_uygunluk": ["senet", "elden odeme", "aylik"],
+        "odeme": ["odeme", "havale", "kart", "taksit", "pesin", "nakit"],
+        "stok": ["stok", "var mi", "mevcut"],
         "kargo": ["kargo", "teslimat"],
         "siparis": ["siparis", "nvd", "takip"],
         "fatura": ["fatura"],
@@ -1098,7 +1335,150 @@ def product_context(row):
     }
 
 
+def get_product_dict_ultra(row):
+    """
+    Ürün satırını hem eski app hem llm_service için güvenli dict formatına çevirir.
+    """
+
+    if row is None:
+        return {}
+
+    try:
+        if product_row_to_dict:
+            converted = product_row_to_dict(row)
+            if converted:
+                return converted
+    except Exception:
+        pass
+
+    return {
+        "urun_adi": clean_str(row.get("product_name")),
+        "kategori": clean_str(row.get("category")),
+        "marka": clean_str(row.get("brand")),
+        "liste_fiyati": money(row.get("price", 0)),
+        "pesin_fiyati": money(row.get("cash_price", 0)),
+        "havale_fiyati": money(row.get("bank_transfer_price", 0)),
+        "kart_fiyati": money(row.get("card_price", 0)),
+        "6_taksit_toplam": money(row.get("installment_6_total", 0)),
+        "6_taksit_aylik": money(safe_number(row.get("installment_6_total", 0)) / 6),
+        "senetli_toplam": money(row.get("senet_total_price", 0)),
+        "senetli_aylik": money(row.get("senet_monthly_9", 0)),
+        "stok": clean_str(row.get("stock_status")),
+        "garanti": clean_str(row.get("warranty", "")),
+        "aciklama": clean_str(row.get("description")),
+        "ozellikler": clean_str(row.get("features")),
+        "kullanim_amaci": clean_str(row.get("use_case")),
+        "odeme_secenekleri": clean_str(row.get("payment_options")),
+    }
+
+
+def build_enriched_intents(question, query_info):
+    """
+    LLM'e düz intent listesi değil, zengin NLP bağlamı gönderir.
+    """
+
+    analysis = query_info.get("nlp_analysis")
+
+    if not analysis:
+        analysis = analyze_user_query(question)
+
+    return {
+        "summary": analysis_to_short_summary(analysis),
+        "intents": analysis.get("intents", []),
+        "primary_intent": analysis.get("primary_intent", "general_question"),
+        "brands": analysis.get("brands", []),
+        "product_types": analysis.get("product_types", []),
+        "categories": analysis.get("categories", []),
+        "use_cases": analysis.get("use_cases", []),
+        "budget": analysis.get("budget"),
+        "payment_priority": analysis.get("payment_priority"),
+        "order_number": analysis.get("order_number"),
+        "urgency": analysis.get("urgency"),
+        "sentiment": analysis.get("sentiment"),
+        "confidence": analysis.get("confidence", 0),
+        "legacy_payments": query_info.get("payments", []),
+    }
+
+
+def create_customer_fallback_answer(decision_result):
+    """
+    Müşteri AI için LLM çalışmazsa temiz cevap üretir.
+    """
+
+    if is_package_request(decision_result.get("query_info", {})):
+        try:
+            package_text = generate_package_text(decision_result)
+
+            if package_text:
+                return (
+                    package_text
+                    + "\n\nBu paketi sepete ekleyebilir veya bütçeye göre daha ekonomik / daha üst segment alternatiflerle yeniden düzenleyebilirsiniz."
+                )
+        except Exception as e:
+            print("Package text hata:", e)
+
+    if RESPONSE_ENGINE_READY and generate_premium_customer_answer:
+        try:
+            user_query = decision_result.get("query_info", {}).get("raw_query", "")
+            return generate_premium_customer_answer(decision_result, user_query)
+        except Exception as e:
+            print("Premium customer response hata:", e)
+
+    df = decision_result.get("result_df", pd.DataFrame())
+    query_info = decision_result.get("query_info", {})
+    analysis = query_info.get("nlp_analysis", {})
+
+    if df is None or df.empty:
+        return (
+            "Talebinize uygun ürünü netleştiremedim. "
+            "Ürün türü, marka, bütçe veya ödeme tercihinizi biraz daha detaylı yazabilirsiniz."
+        )
+
+    first = df.iloc[0]
+    product = get_product_dict_ultra(first)
+
+    payment_priority = analysis.get("payment_priority") or query_info.get("payment_priority")
+
+    if payment_priority == "lowest_total":
+        payment_text = f"Toplamda avantajlı ödeme için havale fiyatı öne çıkıyor: {product.get('havale_fiyati')}."
+    elif payment_priority == "lowest_monthly":
+        payment_text = (
+            f"Aylık düşük ödeme için senetli ödeme seçeneği değerlendirilebilir. "
+            f"Senetli toplam: {product.get('senetli_toplam')}, aylık: {product.get('senetli_aylik')}."
+        )
+    elif payment_priority == "card_installment":
+        payment_text = f"Kredi kartı ile 6 taksit toplamı: {product.get('6_taksit_toplam')}."
+    else:
+        payment_text = (
+            f"Havale, kart taksit ve senetli ödeme seçenekleri müşterinin tercihine göre değerlendirilebilir. "
+            f"Havale: {product.get('havale_fiyati')}, senetli aylık: {product.get('senetli_aylik')}."
+        )
+
+    return (
+        f"Önerim:\n"
+        f"{product.get('urun_adi')} talebinize en uygun seçeneklerden biri olarak görünüyor.\n\n"
+        f"Neden uygun?\n"
+        f"{product.get('aciklama') or 'Ürün özellikleri ve ödeme seçenekleri talebinizle uyumlu görünüyor.'} "
+        f"Stok durumu: {product.get('stok')}.\n\n"
+        f"Ödeme avantajı:\n"
+        f"Liste fiyatı: {product.get('liste_fiyati')}. {payment_text}\n\n"
+        f"Sonraki adım:\n"
+        f"Ürünü sepete ekleyebilir, ödeme seçeneğini karşılaştırabilir veya mağaza personelinden stok teyidi alabilirsiniz."
+    )
+
+
 def store_fallback(question, row):
+    if RESPONSE_ENGINE_READY and generate_premium_store_answer:
+        try:
+            decision_result = {
+                "result_df": pd.DataFrame([row]),
+                "query_info": analyze_query(question),
+                "filter_info": st.session_state.get("last_filter_info", {}),
+            }
+            return generate_premium_store_answer(decision_result, question)
+        except Exception as e:
+            print("Premium store response hata:", e)
+
     intents = detect_store_intent(question)
     values = get_payment_values(row)
 
@@ -1131,50 +1511,228 @@ def store_fallback(question, row):
 
 
 def store_product_answer(products_df, question):
+    """
+    Mağaza AI ultra akış:
+    1. Guardrail kontrolü yapılır.
+    2. Sipariş sorgusu kontrol edilir.
+    3. Ultra NLP analizi yapılır.
+    4. Strict ürün filtresi kategori karışmasını engeller.
+    5. Semantic search aday havuzunu anlam bazlı iyileştirir.
+    6. Karar motoru doğru ürünü seçer.
+    7. LLM yalnızca doğrulanmış veriden cevap üretir.
+    """
+
+    guardrail_info = analyze_guardrail(question, mode="store")
+    st.session_state.last_guardrail_info = guardrail_info
+
+    if guardrail_info.get("blocked"):
+        return (
+            guardrail_info.get("safe_response")
+            or "Bu talep güvenlik nedeniyle işleme alınmadı. Ürün, ödeme, stok veya sipariş bilgisi konusunda yardımcı olabilirim."
+        )
+
+    competitor_note = None
+    if guardrail_info.get("category") in ["competitor_comparison", "rude_language"]:
+        competitor_note = guardrail_info.get("safe_response")
+
     order = find_order(question)
 
     if order:
-        return order_text(order)
+        answer = order_text(order)
+        if competitor_note:
+            return competitor_note + "\n\n" + answer
+        return answer
 
-    intents = detect_store_intent(question)
+    user_id = st.session_state.user_email or "store_user"
+
     query_info = analyze_query(question)
+    query_info, memory_info = apply_memory_to_query(user_id, query_info)
+    st.session_state.last_memory_info = memory_info
+
+    analysis = query_info.get("nlp_analysis", analyze_user_query(question))
+
+    if PRODUCT_FILTER_READY and strict_filter_products:
+        filtered_products_df, filter_info = strict_filter_products(products_df, question)
+    else:
+        filtered_products_df = products_df
+        filter_info = {
+            "active": False,
+            "reason": "Product filter engine aktif değil.",
+            "detected_types": [],
+            "package_query": False,
+        }
+
+    semantic_info = {
+        "active": False,
+        "reason": "Semantic engine aktif değil.",
+        "top_score": 0,
+    }
+
+    semantic_products_df = filtered_products_df
+
+    if SEMANTIC_ENGINE_READY and filtered_products_df is not None and not filtered_products_df.empty:
+        try:
+            if not filter_info.get("package_query"):
+                semantic_products_df = semantic_candidate_search(
+                    filtered_products_df,
+                    question,
+                    top_k=12,
+                    min_score=0.01,
+                )
+
+                top_score = 0
+
+                if "semantic_score" in semantic_products_df.columns and not semantic_products_df.empty:
+                    top_score = float(semantic_products_df["semantic_score"].max())
+
+                semantic_info = {
+                    "active": True,
+                    "reason": "Semantic candidate search çalıştı.",
+                    "top_score": round(top_score, 4),
+                }
+            else:
+                semantic_info = {
+                    "active": False,
+                    "reason": "Paket / çeyiz sorgusunda kategori çeşitliliği için semantic ön eleme kapatıldı.",
+                    "top_score": 0,
+                }
+        except Exception as e:
+            print("Semantic candidate search hata:", e)
+
+    enriched_intents = build_enriched_intents(question, query_info)
+    enriched_intents["strict_filter"] = filter_info
+    enriched_intents["semantic_search"] = semantic_info
+    enriched_intents["guardrail"] = guardrail_info
+
+    query_info["strict_filter"] = filter_info
+    query_info["semantic_search"] = semantic_info
+    query_info["guardrail"] = guardrail_info
 
     if is_package_request(query_info):
-        result = make_package_decision(products_df, query_info)
+        decision_result = make_package_decision(semantic_products_df, query_info)
     else:
-        result = make_decision(products_df, query_info)
+        decision_result = make_decision(semantic_products_df, query_info)
 
-    result_df = result.get("result_df", pd.DataFrame())
+    st.session_state.last_package_summary = decision_result.get("package_summary", {})
+    result_df = decision_result.get("result_df", pd.DataFrame())
 
     if isinstance(result_df, pd.DataFrame) and not result_df.empty:
         result_df = apply_semantic_reranking(result_df, question)
 
-    if result_df.empty:
-        return (
-            "Müşteri talebini net bir ürünle eşleştiremedim. "
-            "Ürün adı, marka, kategori veya sipariş numarasını netleştirin."
-        )
+    decision_result["result_df"] = result_df
+    decision_result["query_info"] = query_info
+    decision_result["filter_info"] = filter_info
+    decision_result["semantic_info"] = semantic_info
+    decision_result["guardrail_info"] = guardrail_info
+
+    if filter_info.get("reason"):
+        old_decision = clean_str(decision_result.get("decision", ""))
+        decision_result["decision"] = f"{filter_info.get('reason')} {semantic_info.get('reason', '')} {old_decision}".strip()
+
+    st.session_state.last_filter_info = filter_info
+    st.session_state.last_semantic_info = semantic_info
+
+    if result_df is None or result_df.empty:
+        try:
+            update_user_memory(user_id, query_info, result_df)
+            log_user_behavior(
+                user_id=user_id,
+                role="store",
+                query=question,
+                query_info=query_info,
+                result_df=result_df,
+                guardrail_info=guardrail_info,
+                filter_info=filter_info,
+                semantic_info=semantic_info,
+                package_summary=decision_result.get("package_summary", {}),
+            )
+        except Exception as e:
+            print("Memory/log store empty hata:", e)
+
+        if filter_info.get("active"):
+            answer = (
+                "Müşteri net bir ürün tipi belirtti ancak katalogda bu ürün tipine uygun ürün bulunamadı. "
+                f"Filtre bilgisi: {filter_info.get('reason')}"
+            )
+        else:
+            answer = (
+                "Müşteri talebini net bir ürünle eşleştiremedim. "
+                "Ürün adı, marka, kategori, bütçe veya sipariş numarasını netleştirin."
+            )
+
+        if competitor_note:
+            return competitor_note + "\n\n" + answer
+        return answer
 
     row = result_df.iloc[0]
+    product_dict = get_product_dict_ultra(row)
 
-    prompt = f"""
-Sen Nevade.com mağaza personeline destek veren üst segment satış asistanısın.
+    order_dict = {}
+    detected_order_no = analysis.get("order_number")
 
-Kurallar:
-- Sadece doğrulanmış veriyi kullan.
-- Fiyat uydurma.
-- Ürün uydurma.
+    if detected_order_no:
+        possible_order = find_order(detected_order_no)
+        if possible_order:
+            order_dict = possible_order
+
+    try:
+        update_user_memory(user_id, query_info, result_df)
+        log_user_behavior(
+            user_id=user_id,
+            role="store",
+            query=question,
+            query_info=query_info,
+            result_df=result_df,
+            guardrail_info=guardrail_info,
+            filter_info=filter_info,
+            semantic_info=semantic_info,
+            package_summary=decision_result.get("package_summary", {}),
+        )
+    except Exception as e:
+        print("Memory/log store hata:", e)
+
+    if LLM_READY and generate_store_llm_answer:
+        try:
+            llm_answer = generate_store_llm_answer(
+                store_question=question,
+                intents=enriched_intents,
+                product_dict=product_dict,
+                order_dict=order_dict,
+            )
+
+            if is_clean_ai_answer(llm_answer):
+                clean_answer = str(llm_answer).strip()
+                if competitor_note:
+                    clean_answer = competitor_note + "\n\n" + clean_answer
+                return clean_answer
+
+        except Exception as e:
+            print("Store LLM hata:", e)
+
+    if call_best_available_llm:
+        try:
+            prompt = f"""
+Sen Nevade.com mağaza personeline destek veren profesyonel satış asistanısın.
+
+Kesin kurallar:
+- Sadece verilen doğrulanmış ürün ve sipariş verisini kullan.
+- Fiyat, stok, taksit, senet, kargo bilgisi uydurma.
 - Türkçe cevap ver.
+- İngilizce veya karışık dil kullanma.
 - Promptu cevaba yazma.
+- Cevap mağaza personelinin müşteriye okuyabileceği şekilde olsun.
 
 Personel sorusu:
 {question}
 
-Algılanan niyetler:
-{intents}
+NLP analizi:
+{enriched_intents}
 
-Doğrulanmış ürün verisi:
-{product_context(row)}
+Doğrulanmış ürün:
+{product_dict}
+
+Doğrulanmış sipariş:
+{order_dict}
 
 Cevap formatı:
 Müşteri talebi:
@@ -1184,72 +1742,221 @@ Satış yönlendirmesi:
 Personel aksiyonu:
 """
 
-    if call_best_available_llm:
-        try:
-            result = call_best_available_llm(prompt)
-            answer = result.get("answer") if isinstance(result, dict) else result
+            router_result = call_best_available_llm(prompt)
+            router_answer = router_result.get("answer") if isinstance(router_result, dict) else router_result
 
-            if answer and len(str(answer)) > 80 and "prompt" not in normalize_text(answer):
-                return str(answer).strip()
+            if is_clean_ai_answer(router_answer):
+                clean_answer = str(router_answer).strip()
+                if competitor_note:
+                    clean_answer = competitor_note + "\n\n" + clean_answer
+                return clean_answer
 
         except Exception as e:
             print("LLM router hata:", e)
 
-    if LLM_READY and generate_store_llm_answer:
-        try:
-            answer = generate_store_llm_answer(
-                store_question=question,
-                intents=intents,
-                product_dict=product_context(row),
-                order_dict={},
-            )
+    print("AI PROVIDER: FALLBACK")
+    fallback_answer = store_fallback(question, row)
 
-            if answer and len(str(answer)) > 80 and "prompt" not in normalize_text(answer):
-                return str(answer).strip()
+    if competitor_note:
+        return competitor_note + "\n\n" + fallback_answer
 
-        except Exception as e:
-            print("Store LLM hata:", e)
-
-    return store_fallback(question, row)
-
+    return fallback_answer
 
 def recommend_products_with_new_ai(products_df, user_query):
+    """
+    Müşteri AI ultra akış:
+    1. Guardrail güvenlik kontrolü yapılır.
+    2. Ultra NLP müşteri ihtiyacını anlar.
+    3. Context geçmişini uygular.
+    4. Strict ürün filtresi kategori karışmasını engeller.
+    5. Semantic search anlam bazlı aday havuzu oluşturur.
+    6. Karar motoru doğrulanmış ürünleri seçer.
+    7. LLM cevap üretir; Gemini/LLM hata verirse temiz premium fallback çalışır.
+    """
+
+    guardrail_info = analyze_guardrail(user_query, mode="customer")
+    st.session_state.last_guardrail_info = guardrail_info
+
+    if guardrail_info.get("blocked"):
+        return (
+            pd.DataFrame(),
+            {
+                "raw_query": user_query,
+                "guardrail": guardrail_info,
+            },
+            guardrail_info.get("safe_response")
+            or "Bu talebe güvenli şekilde yanıt veremiyorum. Ürün, ödeme, stok veya sipariş bilgisi konusunda yardımcı olabilirim.",
+        )
+
+    competitor_note = None
+    if guardrail_info.get("category") in ["competitor_comparison", "rude_language"]:
+        competitor_note = guardrail_info.get("safe_response")
+
+    user_id = st.session_state.user_email or "anonymous"
+
     query_info = analyze_query(user_query)
+
+    query_info, memory_info = apply_memory_to_query(user_id, query_info)
+    st.session_state.last_memory_info = memory_info
 
     query_info = apply_customer_context(
         query_info,
         st.session_state.customer_context,
     )
 
-    if is_package_request(query_info):
-        result = make_package_decision(products_df, query_info)
-    else:
-        result = make_decision(products_df, query_info)
+    context_product_types = query_info.get("product_types", []) or []
+    context_brands = query_info.get("brands", []) or []
 
-    result_df = result.get("result_df", pd.DataFrame())
+    filter_question = " ".join(
+        [
+            user_query,
+            " ".join([str(x) for x in context_product_types]),
+            " ".join([str(x) for x in context_brands]),
+        ]
+    )
+
+    if PRODUCT_FILTER_READY and strict_filter_products:
+        filtered_products_df, filter_info = strict_filter_products(products_df, filter_question)
+    else:
+        filtered_products_df = products_df
+        filter_info = {
+            "active": False,
+            "reason": "Product filter engine aktif değil.",
+            "detected_types": [],
+            "package_query": False,
+        }
+
+    semantic_info = {
+        "active": False,
+        "reason": "Semantic engine aktif değil.",
+        "top_score": 0,
+    }
+
+    semantic_products_df = filtered_products_df
+
+    if SEMANTIC_ENGINE_READY and filtered_products_df is not None and not filtered_products_df.empty:
+        try:
+            if not filter_info.get("package_query"):
+                semantic_products_df = semantic_candidate_search(
+                    filtered_products_df,
+                    user_query,
+                    top_k=12,
+                    min_score=0.01,
+                )
+
+                top_score = 0
+
+                if "semantic_score" in semantic_products_df.columns and not semantic_products_df.empty:
+                    top_score = float(semantic_products_df["semantic_score"].max())
+
+                semantic_info = {
+                    "active": True,
+                    "reason": "Semantic candidate search çalıştı.",
+                    "top_score": round(top_score, 4),
+                }
+            else:
+                semantic_info = {
+                    "active": False,
+                    "reason": "Paket / çeyiz sorgusunda kategori çeşitliliği için semantic ön eleme kapatıldı.",
+                    "top_score": 0,
+                }
+        except Exception as e:
+            print("Semantic candidate search hata:", e)
+
+    query_info["strict_filter"] = filter_info
+    query_info["semantic_search"] = semantic_info
+    query_info["guardrail"] = guardrail_info
+
+    if is_package_request(query_info):
+        decision_result = make_package_decision(semantic_products_df, query_info)
+    else:
+        decision_result = make_decision(semantic_products_df, query_info)
+
+    st.session_state.last_package_summary = decision_result.get("package_summary", {})
+    result_df = decision_result.get("result_df", pd.DataFrame())
 
     if isinstance(result_df, pd.DataFrame) and not result_df.empty:
         result_df = apply_semantic_reranking(result_df, user_query)
 
-    result["result_df"] = result_df
+    decision_result["result_df"] = result_df
+    decision_result["query_info"] = decision_result.get("query_info", query_info)
+    decision_result["filter_info"] = filter_info
+    decision_result["semantic_info"] = semantic_info
+    decision_result["guardrail_info"] = guardrail_info
 
-    try:
-        answer = generate_customer_answer_with_llm(result)
+    if filter_info.get("reason"):
+        old_decision = clean_str(decision_result.get("decision", ""))
+        decision_result["decision"] = f"{filter_info.get('reason')} {semantic_info.get('reason', '')} {old_decision}".strip()
 
-        if not answer or len(str(answer)) < 20:
-            answer = result.get("fallback_answer", "")
+    final_answer = None
 
-    except Exception:
-        answer = result.get("fallback_answer", "")
+    if LLM_READY and generate_customer_llm_answer and isinstance(result_df, pd.DataFrame) and not result_df.empty:
+        try:
+            first_product = result_df.iloc[0]
+            product_dict = get_product_dict_ultra(first_product)
+
+            final_answer = generate_customer_llm_answer(
+                customer_question=user_query,
+                product_dict=product_dict,
+                result_count=len(result_df),
+            )
+
+            if not is_clean_ai_answer(final_answer):
+                final_answer = None
+
+        except Exception as e:
+            print("Customer LLM hata:", e)
+            final_answer = None
+
+    if not final_answer:
+        try:
+            candidate = generate_customer_answer_with_llm(decision_result)
+
+            if is_clean_ai_answer(candidate):
+                final_answer = candidate
+
+        except Exception as e:
+            print("Customer answer engine hata:", e)
+            final_answer = None
+
+    if not final_answer:
+        print("AI PROVIDER: FALLBACK")
+        final_answer = create_customer_fallback_answer(decision_result)
+
+    if competitor_note:
+        final_answer = competitor_note + "\n\n" + final_answer
 
     st.session_state.customer_context = update_customer_context(
         st.session_state.customer_context,
         query_info,
     )
 
-    st.session_state.last_decision = result.get("decision", "")
+    result_df = decision_result.get("result_df", pd.DataFrame())
+    final_query_info = decision_result.get("query_info", query_info)
 
-    return result_df, result.get("query_info", query_info), answer
+    try:
+        update_user_memory(user_id, query_info, result_df)
+        log_user_behavior(
+            user_id=user_id,
+            role="customer",
+            query=user_query,
+            query_info=query_info,
+            result_df=result_df,
+            guardrail_info=guardrail_info,
+            filter_info=filter_info,
+            semantic_info=semantic_info,
+            package_summary=decision_result.get("package_summary", {}),
+        )
+    except Exception as e:
+        print("Memory/log customer hata:", e)
+
+    st.session_state.last_decision = decision_result.get("decision", "")
+    st.session_state.last_filter_info = filter_info
+    st.session_state.last_semantic_info = semantic_info
+    st.session_state.last_guardrail_info = guardrail_info
+    st.session_state.last_fallback_answer = decision_result.get("fallback_answer", "")
+
+    return result_df, final_query_info, final_answer
 
 
 # =====================================================
@@ -1507,8 +2214,51 @@ def chat_panel(messages, empty_text, title, mode):
     </html>
     """
 
-    components.html(html_code, height=665, scrolling=False)
+    st.html(html_code)
 
+
+
+def visual_dataframe(df, title="Veri Tablosu", subtitle="", height=420):
+    """Premium tablo başlığı + güvenli dataframe. HTML div içine st.dataframe gömmeyiz."""
+    safe_title = html.escape(str(title or "Veri Tablosu"))
+    safe_sub = html.escape(str(subtitle or ""))
+
+    if df is None or getattr(df, "empty", True):
+        st.markdown(
+            f"""
+            <div class="nv-empty-state">
+                <div class="nv-empty-icon">⌁</div>
+                <div>
+                    <div class="nv-empty-title">{safe_title}</div>
+                    <div class="nv-empty-sub">Gösterilecek veri bulunamadı.</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
+    row_count = len(df)
+    col_count = len(df.columns) if hasattr(df, "columns") else 0
+
+    st.markdown(
+        f"""
+        <div class="nv-table-banner">
+            <div class="nv-table-left">
+                <div class="nv-table-eyebrow">DATA VIEW</div>
+                <div class="nv-table-title">{safe_title}</div>
+                <div class="nv-table-subtitle">{safe_sub}</div>
+            </div>
+            <div class="nv-table-count-pill">{row_count} satır · {col_count} kolon</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    kwargs = {"use_container_width": True}
+    if height is not None:
+        kwargs["height"] = int(height) if isinstance(height, (int, float)) else height
+    st.dataframe(df, **kwargs)
 
 def render_mini_cart_bar():
     item_count = sum(int(item.get("quantity", 1)) for item in st.session_state.cart)
@@ -1516,21 +2266,79 @@ def render_mini_cart_bar():
     last_order = get_last_order()
     last_order_no = last_order.get("order_id", "-") if last_order else "-"
 
+    modules = [
+        ("NLP", "Ultra" if NLP_ENGINE_READY else "Basit"),
+        ("LLM", "Açık" if LLM_READY else "Fallback"),
+        ("Strict", "Aktif" if PRODUCT_FILTER_READY else "Fallback"),
+        ("Semantic", "Aktif" if SEMANTIC_ENGINE_READY else "Fallback"),
+        ("Guardrail", "Aktif" if GUARDRAIL_READY else "Fallback"),
+        ("Memory", "Aktif" if MEMORY_ENGINE_READY else "Fallback"),
+        ("Metrics", "Aktif" if METRICS_ENGINE_READY else "Fallback"),
+        ("Vision", "Aktif" if VISION_ENGINE_READY else "Fallback"),
+    ]
+    module_html = "".join([f'<span class="nv-live-chip"><b>{html.escape(k)}</b>{html.escape(v)}</span>' for k, v in modules])
+
     st.markdown(
         f"""
-        <div class="mini-cart">
-            <div class="mini-cart-title">Canlı Ticaret Durumu</div>
-            <div class="mini-cart-sub">
-                Sepet: <b>{item_count} ürün</b> |
-                Sepet toplamı: <b>{money(total)}</b> |
-                Sipariş: <b>{len(st.session_state.orders)}</b> |
-                Son sipariş: <b>{last_order_no}</b>
+        <div class="nv-livebar">
+            <div class="nv-live-main">
+                <div class="nv-live-orb"></div>
+                <div>
+                    <div class="nv-live-title">Canlı Ticaret Durumu</div>
+                    <div class="nv-live-sub">
+                        Sepet <b>{item_count}</b> ürün · Toplam <b>{money(total)}</b> · Sipariş <b>{len(st.session_state.orders)}</b> · Son <b>{last_order_no}</b>
+                    </div>
+                </div>
             </div>
+            <div class="nv-live-modules">{module_html}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+def render_app_header():
+    current_user = st.session_state.get("current_user", {}) or {}
+    user_name = current_user.get("name") or current_user.get("email") or "Nevade Kullanıcısı"
+    user_role = {
+        "admin": "Sistem Yöneticisi",
+        "store": "Mağaza Personeli",
+        "customer": "Müşteri Paneli",
+    }.get(st.session_state.get("user_role", ""), current_user.get("role", "AI Panel"))
+    user_email = st.session_state.get("user_email", "") or current_user.get("email", "") or "admin@nevade.com"
+
+    st.markdown(
+        f"""
+        <section class="nv-hero-shell">
+            <div class="nv-hero-bg-shape nv-shape-one"></div>
+            <div class="nv-hero-bg-shape nv-shape-two"></div>
+            <div class="nv-hero-content">
+                <div class="nv-brand-panel">
+                    <div class="nv-logo-premium">N</div>
+                    <div>
+                        <div class="nv-overline">NEVADE AI COMMERCE</div>
+                        <h1 class="nv-hero-heading">Satış destek, ürün öneri ve görsel arama paneli</h1>
+                        <p class="nv-hero-copy">
+                            Katalog verisini doğrulayan karar motoru, güvenli cevap katmanı, senetli ödeme akışı ve görsel ürün algılama tek premium arayüzde.
+                        </p>
+                    </div>
+                </div>
+                <div class="nv-user-glass-card">
+                    <div class="nv-user-topline">
+                        <span>Aktif Oturum</span>
+                        <span class="nv-online-dot"></span>
+                    </div>
+                    <div class="nv-user-name">{html.escape(str(user_name))}</div>
+                    <div class="nv-user-role">{html.escape(str(user_role))}</div>
+                    <div class="nv-user-email">{html.escape(str(user_email))}</div>
+                    <div class="nv-hero-pills">
+                        <span>AI Engine</span><span>Vision</span><span>Metrics</span><span>Guardrail</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def render_topbar():
     role = {
@@ -1539,162 +2347,162 @@ def render_topbar():
         "customer": "Değerli Müşterimiz",
     }.get(st.session_state.user_role, "Kullanıcı")
 
-    with st.container(border=True):
-        left, right = st.columns([2.5, 1], gap="large")
+    pages = [
+        ("dashboard", "Kontrol", "⌂"),
+        ("customer_ai", "Müşteri AI", "✦"),
+        ("store_ai", "Mağaza AI", "◆"),
+        ("quick_actions", "Hızlı", "⚡"),
+        ("cart_checkout", "Sepet", "◈"),
+        ("orders", "Sipariş", "▣"),
+        ("compare", "Karşılaştır", "⇄"),
+        ("products", "Katalog", "▥"),
+        ("memory", "Memory", "◎"),
+        ("metrics", "Metrics", "▤"),
+        ("vision", "Görsel", "◉"),
+    ]
 
-        with left:
-            st.markdown('<div class="topbar-title">Nevade AI Commerce Hub</div>', unsafe_allow_html=True)
-            st.caption("LLM destekli alışveriş asistanı, karar motoru, sepet, sipariş ve mağaza operasyon paneli")
+    st.markdown(
+        f"""
+        <div class="nv-nav-head">
+            <div>
+                <div class="nv-nav-kicker">COMMERCE HUB</div>
+                <div class="nv-nav-title">Operasyon modülleri</div>
+            </div>
+            <div class="nv-nav-role">{html.escape(str(role))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        with right:
-            st.write(f"**Rol:** {role}")
-            st.caption(st.session_state.user_email)
+    st.markdown('<div class="nv-nav-wrap">', unsafe_allow_html=True)
+    columns = st.columns(len(pages) + 1, gap="small")
+    for index, (page_id, label, icon) in enumerate(pages):
+        with columns[index]:
+            button_type = "primary" if st.session_state.get("page") == page_id else "secondary"
+            if st.button(f"{icon} {label}", use_container_width=True, key=f"nav_{page_id}", type=button_type):
+                go_page(page_id)
 
-        columns = st.columns(9)
-
-        pages = [
-            ("dashboard", "Kontrol Paneli"),
-            ("customer_ai", "Müşteri AI"),
-            ("store_ai", "Mağaza AI"),
-            ("quick_actions", "Hızlı İşlemler"),
-            ("cart_checkout", "Sepet / Sipariş"),
-            ("orders", "Siparişler"),
-            ("compare", "Karşılaştır"),
-            ("products", "Katalog"),
-        ]
-
-        for index, (page_id, label) in enumerate(pages):
-            with columns[index]:
-                if st.button(label, use_container_width=True, key=f"nav_{page_id}"):
-                    go_page(page_id)
-
-        with columns[8]:
-            if st.button("Çıkış", use_container_width=True):
-                st.session_state.logged_in = False
-                st.session_state.user_email = ""
-                st.session_state.user_role = ""
-                st.session_state.page = "dashboard"
-                st.rerun()
+    with columns[-1]:
+        if st.button("⎋ Çıkış", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.user_email = ""
+            st.session_state.user_role = ""
+            st.session_state.current_user = {}
+            st.session_state.page = "dashboard"
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     render_mini_cart_bar()
 
-
 def product_card(row, key_prefix, query_info=None, compact=False):
     product_id = clean_str(row.get("product_id", "")) or f"{key_prefix}_{abs(hash(row.get('product_name', 'urun')))}"
+    product_name = clean_str(row.get("product_name", "İsimsiz Ürün"))
+    category = clean_str(row.get("category", "-"))
+    brand = clean_str(row.get("brand", "-"))
+    image_link = clean_str(row.get("image_link", ""))
+    percent = ai_percent(row)
 
-    with st.container(border=True):
-        image_col, info_col = st.columns([1, 2.7], gap="large")
+    if percent >= 90:
+        label = "Çok Uygun"
+    elif percent >= 80:
+        label = "Uygun"
+    elif percent >= 70:
+        label = "Değerlendirilebilir"
+    else:
+        label = "Alternatif"
 
-        with image_col:
-            image_link = clean_str(row.get("image_link", ""))
+    tags = []
+    if normalize_text(row.get("stock_status", "")) == "stokta":
+        tags.append('<span class="nv-tag">Stokta</span>')
+    if safe_number(row.get("bank_transfer_price", 0)) > 0:
+        tags.append('<span class="nv-tag orange">Havale avantajı</span>')
+    if safe_number(row.get("senet_total_price", 0)) > 0:
+        tags.append('<span class="nv-tag">Senetli ödeme</span>')
 
-            if image_link:
-                try:
-                    st.image(image_link, use_container_width=True)
-                except Exception:
-                    st.info("Görsel yüklenemedi")
-            else:
-                st.info("Görsel Mevcut Değil")
+    st.markdown('<div class="nv-product-visual">', unsafe_allow_html=True)
+    image_col, info_col = st.columns([1, 2.65], gap="large")
 
-        with info_col:
-            if clean_str(row.get("package_group", "")):
-                st.markdown(
-                    f'<div class="package-box">Paket Kategorisi: {row.get("package_group")}</div>',
-                    unsafe_allow_html=True,
-                )
+    with image_col:
+        st.markdown('<div class="nv-image-card">', unsafe_allow_html=True)
+        if image_link:
+            try:
+                st.image(image_link, use_container_width=True)
+            except Exception:
+                st.markdown('<div class="nv-no-image">N</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="nv-no-image">N</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-            percent = ai_percent(row)
-
-            if percent >= 90:
-                label = "Çok Uygun"
-            elif percent >= 80:
-                label = "Uygun"
-            elif percent >= 70:
-                label = "Değerlendirilebilir"
-            else:
-                label = "Düşük Eşleşme"
-
-            st.markdown(f"### {row.get('product_name', 'İsimsiz Ürün')}")
-            st.caption(f"Kategori: {row.get('category', '-')} | Marka: {row.get('brand', '-')}")
-
-            st.markdown(f"**Yapay Zeka Uygunluk Skoru:** %{percent} — **{label}**")
-
-            tags = []
-
-            if normalize_text(row.get("stock_status", "")) == "stokta":
-                tags.append("Stokta")
-
-            if safe_number(row.get("bank_transfer_price", 0)) > 0:
-                tags.append("Havale Avantajı")
-
-            if safe_number(row.get("senet_total_price", 0)) > 0:
-                tags.append("Senetli Ödeme")
-
-            if tags:
-                st.write(" ".join([f"[{tag}]" for tag in tags]))
-
+    with info_col:
+        if clean_str(row.get("package_group", "")):
             st.markdown(
-                f'<div class="product-price">{money(row.get("price", 0))}</div>',
+                f'<div class="brand-badge">Paket Kategorisi: {html.escape(str(row.get("package_group")))}</div>',
                 unsafe_allow_html=True,
             )
 
-            if not compact:
-                tab1, tab2, tab3 = st.tabs(["AI Öneri Nedeni", "Ödeme Modelleri", "Satış Notu"])
+        st.markdown(
+            f"""
+            <div class="nv-product-top">
+                <div>
+                    <div class="nv-product-name">{html.escape(product_name)}</div>
+                    <div class="nv-product-meta">{html.escape(category)} · {html.escape(brand)} · Ürün Kodu: {html.escape(str(product_id))}</div>
+                </div>
+                <div class="nv-score-chip"><b>%{percent}</b><span>{label}</span></div>
+            </div>
+            <div class="nv-product-price-row">
+                <div class="nv-product-price">{money(row.get("price", 0))}</div>
+                <div>{''.join(tags)}</div>
+            </div>
+            <div class="nv-product-desc">{html.escape(clean_str(row.get("description", "Açıklama bulunmuyor.")))}</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-                with tab1:
-                    st.write(row.get("description", "Açıklama bulunmuyor."))
+        if clean_str(row.get("features", "")):
+            st.caption(row.get("features", ""))
 
-                    if clean_str(row.get("features", "")):
-                        st.write(row.get("features", ""))
+        if not compact:
+            tab1, tab2, tab3 = st.tabs(["AI Öneri Nedeni", "Ödeme Modelleri", "Satış Notu"])
+            with tab1:
+                st.write(row.get("description", "Açıklama bulunmuyor."))
+                if clean_str(row.get("features", "")):
+                    st.write(row.get("features", ""))
+            with tab2:
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.write(f"**Peşin:** {money(row.get('cash_price', 0))}")
+                    st.write(f"**Havale:** {money(row.get('bank_transfer_price', 0))}")
+                with c2:
+                    st.write(f"**Kart:** {money(row.get('card_price', 0))}")
+                    st.write(f"**6 Taksit:** {money(row.get('installment_6_total', 0))}")
+                with c3:
+                    st.write(f"**Senetli Toplam:** {money(row.get('senet_total_price', 0))}")
+                    st.write(f"**Senetli Aylık:** {money(row.get('senet_monthly_9', 0))}")
+            with tab3:
+                values = get_payment_values(row)
+                if values["best_option"]:
+                    st.success(f"Toplam tutarda en avantajlı seçenek: {values['best_option'][0]} - {money(values['best_option'][1])}")
+                if values["senet_total"] > 0:
+                    st.info(f"Aylık düşük ödeme için senetli seçenek anlatılabilir: {money(values['senet_monthly'])}/ay")
 
-                with tab2:
-                    c1, c2, c3 = st.columns(3)
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("Sepete Ekle", key=f"cart_{key_prefix}_{product_id}", use_container_width=True):
+                add_product_to_cart(row)
+                st.rerun()
+        with b2:
+            if st.button("Karşılaştır", key=f"comp_{key_prefix}_{product_id}", use_container_width=True):
+                existing_ids = [str(item.get("product_id")) for item in st.session_state.compare_items]
+                if str(product_id) not in existing_ids:
+                    st.session_state.compare_items.append(row.to_dict() if hasattr(row, "to_dict") else dict(row))
+                    st.success("Karşılaştırma listesine eklendi.")
+                else:
+                    st.info("Bu ürün zaten karşılaştırma listesinde.")
+        with b3:
+            if row.get("product_link"):
+                st.link_button("Ürüne Git", row.get("product_link"), use_container_width=True)
 
-                    with c1:
-                        st.write(f"**Peşin:** {money(row.get('cash_price', 0))}")
-                        st.write(f"**Havale:** {money(row.get('bank_transfer_price', 0))}")
-
-                    with c2:
-                        st.write(f"**Kart:** {money(row.get('card_price', 0))}")
-                        st.write(f"**6 Taksit:** {money(row.get('installment_6_total', 0))}")
-
-                    with c3:
-                        st.write(f"**Senetli Toplam:** {money(row.get('senet_total_price', 0))}")
-                        st.write(f"**Senetli Aylık:** {money(row.get('senet_monthly_9', 0))}")
-
-                with tab3:
-                    values = get_payment_values(row)
-
-                    if values["best_option"]:
-                        st.success(
-                            f"Toplam tutarda en avantajlı seçenek: {values['best_option'][0]} - {money(values['best_option'][1])}"
-                        )
-
-                    if values["senet_total"] > 0:
-                        st.info(
-                            f"Aylık düşük ödeme için senetli seçenek anlatılabilir: {money(values['senet_monthly'])}/ay"
-                        )
-
-            b1, b2, b3 = st.columns(3)
-
-            with b1:
-                if st.button("Sepete Ekle", key=f"cart_{key_prefix}_{product_id}", use_container_width=True):
-                    add_product_to_cart(row)
-                    st.rerun()
-
-            with b2:
-                if st.button("Karşılaştır", key=f"comp_{key_prefix}_{product_id}", use_container_width=True):
-                    existing_ids = [str(item.get("product_id")) for item in st.session_state.compare_items]
-
-                    if str(product_id) not in existing_ids:
-                        st.session_state.compare_items.append(row.to_dict() if hasattr(row, "to_dict") else dict(row))
-                        st.success("Karşılaştırma listesine eklendi.")
-                    else:
-                        st.info("Bu ürün zaten karşılaştırma listesinde.")
-
-            with b3:
-                if row.get("product_link"):
-                    st.link_button("Ürüne Git", row.get("product_link"), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def order_card(order):
@@ -1717,7 +2525,7 @@ def order_card(order):
     )
 
     with st.expander("Sipariş ürünleri"):
-        st.dataframe(pd.DataFrame(order.get("items", [])), use_container_width=True)
+        visual_dataframe(pd.DataFrame(order.get("items", [])), title="Sipariş Ürünleri", subtitle="Sipariş içindeki ürün kalemleri")
 
 
 # =====================================================
@@ -1805,6 +2613,7 @@ def render_login_page():
                     st.session_state.logged_in = True
                     st.session_state.user_email = email
                     st.session_state.user_role = USERS[email]["role"]
+                    st.session_state.current_user = {"email": email, "role": USERS[email]["role"], "name": email.split("@")[0].replace(".", " ").title()}
                     st.session_state.page = "dashboard"
                     st.rerun()
                 else:
@@ -1829,13 +2638,13 @@ def render_login_page():
     b1, b2, b3, b4 = st.columns(4)
 
     with b1:
-        st.metric("AI Katmanı", "LLM + Rule", "Güvenli hibrit yapı")
+        st.metric("AI Katmanı", "NLP + LLM", "Güvenli hibrit yapı")
 
     with b2:
         st.metric("Sepet Akışı", "Aktif", "Ürün -> Sepet -> Sipariş")
 
     with b3:
-        st.metric("Destek", "Aktif", "Kargo, fatura, iade")
+        st.metric("NLP Durumu", "Ultra" if NLP_ENGINE_READY else "Basit", "Niyet ve varlık analizi")
 
     with b4:
         st.metric("LLM Durumu", "Hazır" if LLM_READY else "Fallback", "Doğal cevap motoru")
@@ -1863,6 +2672,8 @@ def dashboard(products_df):
     with d:
         st.metric("Sepet Toplamı", money(get_cart_total()))
 
+    st.caption(f"NLP: {'Ultra aktif' if NLP_ENGINE_READY else 'Basit mod'} | LLM: {'Aktif' if LLM_READY else 'Fallback'}")
+
     st.write("")
 
     st.markdown(
@@ -1870,9 +2681,9 @@ def dashboard(products_df):
         <div class="luxury-kpi">
             <h3>Nevade AI Commerce Hub — Üst Segment Demo</h3>
             <p>
-                Bu panelde LLM doğrudan ürün veya fiyat kararı vermez. Önce karar motoru doğrulanmış ürün,
-                stok, fiyat ve ödeme verisini seçer. LLM yalnızca bu güvenli veriyi müşteri ve mağaza personeli
-                diline çevirir.
+                Bu panelde LLM doğrudan ürün veya fiyat kararı vermez. Önce NLP kullanıcı niyetini analiz eder,
+                karar motoru doğrulanmış ürün, stok, fiyat ve ödeme verisini seçer. LLM yalnızca bu güvenli veriyi
+                müşteri ve mağaza personeli diline çevirir.
             </p>
         </div>
         <div class="premium-divider"></div>
@@ -1887,10 +2698,11 @@ def dashboard(products_df):
             """
             <div class="premium-card">
                 <h3>LLM Kontrollü Ticaret Akışı</h3>
-                <p><b>1. NLP:</b> Kullanıcı niyetini algılar.</p>
+                <p><b>1. Ultra NLP:</b> Kullanıcı niyetini, bütçeyi, ödeme isteğini ve ürün tipini algılar.</p>
                 <p><b>2. Karar Motoru:</b> Doğru ürün, stok, fiyat ve ödeme seçeneğini seçer.</p>
                 <p><b>3. LLM:</b> Veriyi doğal müşteri/personel diline çevirir.</p>
-                <p><b>4. Fallback:</b> LLM kötü cevap verirse güvenli premium cevap üretir.</p>
+                <p><b>4. Kalite Filtresi:</b> Karışık dil, prompt sızıntısı veya kötü cevap varsa engeller.</p>
+                <p><b>5. Fallback:</b> LLM kötü cevap verirse güvenli premium cevap üretir.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1913,6 +2725,12 @@ def dashboard(products_df):
 
         st.markdown("### Son Sipariş")
         st.info(order_text(get_last_order()))
+
+        st.markdown("### Kullanıcı Hafızası")
+        if MEMORY_ENGINE_READY:
+            st.info(memory_summary_text(st.session_state.user_email or "anonymous"))
+        else:
+            st.warning("Memory engine aktif değil.")
 
 
 def customer_page(products_df):
@@ -1943,7 +2761,7 @@ def customer_page(products_df):
         if submitted and question.strip():
             st.session_state.customer_messages.append({"role": "user", "text": question})
 
-            with st.spinner("Karar motoru ve LLM birlikte çalışıyor..."):
+            with st.spinner("Ultra NLP, karar motoru ve LLM birlikte çalışıyor..."):
                 results, query_info, answer = recommend_products_with_new_ai(products_df, question)
                 st.session_state.last_results = results
                 st.session_state.last_query_info = query_info
@@ -1982,6 +2800,10 @@ def customer_page(products_df):
                 st.session_state.customer_messages = []
                 st.session_state.customer_context = create_empty_customer_context()
                 st.session_state.last_results = pd.DataFrame()
+                st.session_state.last_filter_info = {}
+                st.session_state.last_semantic_info = {}
+                st.session_state.last_package_summary = {}
+                st.session_state.last_guardrail_info = {}
                 st.rerun()
 
         with c2:
@@ -1994,6 +2816,27 @@ def customer_page(products_df):
         if st.session_state.last_query_info:
             with st.expander("Algılanan Müşteri İsteği", expanded=False):
                 st.json(st.session_state.last_query_info)
+
+                if st.session_state.last_guardrail_info:
+                    st.markdown("#### Guardrail")
+                    st.json(st.session_state.last_guardrail_info)
+
+                if st.session_state.last_memory_info:
+                    st.markdown("#### Memory")
+                    st.json(st.session_state.last_memory_info)
+
+                if st.session_state.last_filter_info:
+                    st.markdown("#### Strict Filter")
+                    st.json(st.session_state.last_filter_info)
+
+                if st.session_state.last_semantic_info:
+                    st.markdown("#### Semantic Search")
+                    st.json(st.session_state.last_semantic_info)
+
+                if st.session_state.last_package_summary:
+                    st.markdown("#### Package Summary")
+                    st.json(st.session_state.last_package_summary)
+
                 st.markdown(
                     f'<div class="decision-box"><strong>Karar:</strong> {st.session_state.last_decision}</div>',
                     unsafe_allow_html=True,
@@ -2036,7 +2879,7 @@ def store_page(products_df):
         if submitted and question.strip():
             st.session_state.store_messages.append({"role": "store", "text": question})
 
-            with st.spinner("Karar motoru veriyi seçiyor, LLM cevabı hazırlıyor..."):
+            with st.spinner("Ultra NLP veriyi analiz ediyor, karar motoru ürünü seçiyor, LLM cevabı hazırlıyor..."):
                 answer = store_product_answer(products_df, question)
                 st.session_state.store_messages.append({"role": "assistant", "text": answer})
 
@@ -2239,7 +3082,7 @@ def compare_page():
         if col in compare_df.columns
     ]
 
-    st.dataframe(compare_df[visible_cols], use_container_width=True)
+    visual_dataframe(compare_df[visible_cols], title="Karşılaştırma Matrisi", subtitle="Seçili ürünlerin fiyat, marka ve stok karşılaştırması")
 
     for index, row in compare_df.iterrows():
         product_card(row, f"compare_{index}", compact=True)
@@ -2251,13 +3094,15 @@ def products_page(products_df):
 
     with st.expander("Yeni Ürün Ekleme Paneli", expanded=False):
         with st.form("add_product_form"):
-            product_id = st.text_input("Ürün Kodu", placeholder="P005")
+            product_id = st.text_input("Ürün Kodu", placeholder="P007")
             product_name = st.text_input("Ürün İsmi")
             category = st.selectbox("Kategori", ["Beyaz Eşya", "Televizyon", "Küçük Ev Aleti", "Cep Telefonu", "Bilgisayar"])
             brand = st.text_input("Marka")
             price = st.number_input("Liste Fiyatı", min_value=0, value=10000)
-            stock = st.selectbox("Stok Durumu", ["Stokta", "Tükendi"])
+            stock = st.selectbox("Stok Durumu", ["Stokta", "Tükendi", "Sınırlı Stok"])
             description = st.text_area("Açıklama")
+            use_case = st.text_input("Kullanım Amacı", value="Ev, günlük kullanım")
+            features = st.text_input("Özellikler", value="Demo özellik")
 
             submitted = st.form_submit_button("Ürünü Kaydet", use_container_width=True)
 
@@ -2275,6 +3120,9 @@ def products_page(products_df):
                     "senet_total_price": price * 1.20,
                     "senet_monthly_9": price * 1.20 / 9,
                     "stock_status": stock,
+                    "payment_options": "Kart, Havale, Taksit, Senet",
+                    "use_case": use_case,
+                    "features": features,
                     "description": description,
                     "product_link": "https://www.nevade.com/",
                     "image_link": "",
@@ -2288,11 +3136,288 @@ def products_page(products_df):
 
     visible_cols = [
         col
-        for col in ["product_id", "product_name", "category", "brand", "price", "stock_status"]
+        for col in [
+            "product_id",
+            "product_name",
+            "category",
+            "brand",
+            "price",
+            "bank_transfer_price",
+            "senet_total_price",
+            "stock_status",
+        ]
         if col in products_df.columns
     ]
 
-    st.dataframe(products_df[visible_cols], use_container_width=True)
+    visual_dataframe(products_df[visible_cols], title="Ürün Kataloğu", subtitle="Nevade ürünleri, fiyat ve stok bilgileri")
+
+
+
+
+def memory_page():
+    st.markdown('<div class="brand-badge">CUSTOMER MEMORY</div>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-head">Kullanıcı Hafızası ve Davranış Logları</h2>', unsafe_allow_html=True)
+
+    user_id = st.session_state.user_email or "anonymous"
+
+    st.markdown("### Hafıza Özeti")
+    st.info(memory_summary_text(user_id))
+
+    st.markdown("### Ham Kullanıcı Hafızası")
+    try:
+        st.json(get_user_memory(user_id))
+    except Exception as e:
+        st.warning(f"Hafıza okunamadı: {e}")
+
+    st.markdown("### Son Davranış Logları")
+    logs = load_behavior_log(limit=100)
+
+    if logs is None or logs.empty:
+        st.info("Henüz davranış logu yok.")
+    else:
+        visual_dataframe(logs, title="Davranış Logları", subtitle="Kullanıcı sorguları ve AI etkileşim kayıtları")
+
+
+
+
+def metrics_page():
+    st.markdown('<div class="brand-badge">AI PERFORMANCE METRICS</div>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-head">AI Performans ve Kullanım Metrikleri</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-desc">Sistem kullanımını, müşteri ilgisini, ödeme tercihlerini ve güvenlik olaylarını ölçer.</p>',
+        unsafe_allow_html=True,
+    )
+
+    if not METRICS_ENGINE_READY:
+        st.warning("Metrics engine aktif değil. src/metrics_engine.py dosyasını eklediğinizde bu sayfa otomatik aktif olur.")
+
+    metrics = calculate_ai_metrics()
+
+    a, b, c, d = st.columns(4)
+
+    with a:
+        st.metric("Toplam Sorgu", metrics.get("total_queries", 0))
+
+    with b:
+        st.metric("Müşteri Sorgusu", metrics.get("customer_queries", 0))
+
+    with c:
+        st.metric("Mağaza Sorgusu", metrics.get("store_queries", 0))
+
+    with d:
+        st.metric("Guardrail Olayı", metrics.get("guardrail_events", 0))
+
+    e, f, g, h = st.columns(4)
+
+    with e:
+        st.metric("Strict Filter", metrics.get("strict_filter_events", 0))
+
+    with f:
+        st.metric("Semantic Search", metrics.get("semantic_events", 0))
+
+    with g:
+        st.metric("Paket Sorgusu", metrics.get("package_events", 0))
+
+    with h:
+        st.metric("Son Güncelleme", metrics.get("last_updated", "-"))
+
+    st.markdown("---")
+
+    left, right = st.columns(2, gap="large")
+
+    with left:
+        st.markdown("### En Çok Sorulan Ürün Tipleri")
+        product_report = get_product_interest_report()
+
+        if product_report is None or product_report.empty:
+            st.info("Henüz ürün tipi verisi yok.")
+        else:
+            visual_dataframe(product_report, title="Ürün Tipi İlgisi", subtitle="Müşterilerin en çok sorduğu ürün kategorileri")
+
+        st.markdown("### Ödeme Tercihleri")
+        payment_report = get_payment_interest_report()
+
+        if payment_report is None or payment_report.empty:
+            st.info("Henüz ödeme tercihi verisi yok.")
+        else:
+            visual_dataframe(payment_report, title="Ödeme Tercihleri", subtitle="Senet, kart, havale ve taksit ilgi dağılımı")
+
+    with right:
+        st.markdown("### En Çok Önerilen Ürünler")
+        top_product_report = get_top_product_report()
+
+        if top_product_report is None or top_product_report.empty:
+            st.info("Henüz ürün öneri verisi yok.")
+        else:
+            visual_dataframe(top_product_report, title="En Çok Önerilen Ürünler", subtitle="AI karar motorunun öne çıkardığı ürünler")
+
+        st.markdown("### Guardrail Kategorileri")
+        guardrail_report = get_guardrail_report()
+
+        if guardrail_report is None or guardrail_report.empty:
+            st.info("Henüz guardrail verisi yok.")
+        else:
+            visual_dataframe(guardrail_report, title="Guardrail Kategorileri", subtitle="Güvenlik ve politika filtreleme olayları")
+
+    st.markdown("### Son AI Aktivitesi")
+    recent = get_recent_activity(limit=100)
+
+    if recent is None or recent.empty:
+        st.info("Henüz aktivite logu yok.")
+    else:
+        visual_dataframe(recent, title="Son AI Aktivitesi", subtitle="Son müşteri/mağaza etkileşimleri")
+
+
+
+def vision_page(products_df):
+    st.markdown('<div class="brand-badge">VISUAL PRODUCT SEARCH</div>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-head">Görsel ile Ürün Bulma</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-desc">Müşteri ürün görseli yükler; sistem Gemini Vision + manuel ürün tipi + semantic search ile en yakın katalog ürünlerini bulur.</p>',
+        unsafe_allow_html=True,
+    )
+
+    left, right = st.columns([1, 1.5], gap="large")
+
+    with left:
+        uploaded_file = st.file_uploader(
+            "Ürün görseli yükle",
+            type=["png", "jpg", "jpeg", "webp"],
+        )
+
+        visual_type_label = st.selectbox(
+            "Görseldeki ürün tipi",
+            [
+                "Otomatik / emin değilim",
+                "Buzdolabı",
+                "Mini buzdolabı / içecek soğutucu",
+                "Çamaşır makinesi",
+                "Bulaşık makinesi",
+                "Televizyon",
+                "Süpürge",
+                "Laptop / bilgisayar",
+                "Telefon",
+                "Klima",
+                "Fırın / ankastre",
+            ],
+        )
+
+        description = st.text_area(
+            "Görsel / ürün açıklaması",
+            placeholder="Örn: Balkonda içecek saklamak için küçük buzdolabı gibi bir ürün arıyorum.",
+            height=120,
+        )
+
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption=uploaded_file.name, use_container_width=True)
+            st.session_state.last_uploaded_image_name = uploaded_file.name
+
+        type_to_query = {
+            "Otomatik / emin değilim": "",
+            "Buzdolabı": "buzdolabi no frost sogutucu",
+            "Mini buzdolabı / içecek soğutucu": "mini buzdolabi minibar icecek sogutucu kucuk buzdolabi",
+            "Çamaşır makinesi": "camasir makinesi",
+            "Bulaşık makinesi": "bulasik makinesi",
+            "Televizyon": "televizyon smart tv",
+            "Süpürge": "supurge temizlik",
+            "Laptop / bilgisayar": "laptop bilgisayar notebook ogrenci",
+            "Telefon": "telefon iphone galaxy android",
+            "Klima": "klima",
+            "Fırın / ankastre": "firin ankastre ocak",
+        }
+
+        use_gemini_vision = st.checkbox(
+            "Gemini Vision ile görseli otomatik analiz et",
+            value=True,
+        )
+
+        st.markdown("### Hızlı görsel arama testleri")
+        t1, t2 = st.columns(2)
+
+        with t1:
+            if st.button("Mini buzdolabı örneği", use_container_width=True):
+                description = "Balkonda içecek saklamak için küçük buzdolabı gibi bir şey arıyorum"
+                visual_type_label = "Mini buzdolabı / içecek soğutucu"
+
+        with t2:
+            if st.button("Laptop örneği", use_container_width=True):
+                description = "Öğrenci için ders ve sunum yapmalık bilgisayar"
+                visual_type_label = "Laptop / bilgisayar"
+
+        if st.button("Görselden Ürün Ara", use_container_width=True):
+            filename = uploaded_file.name if uploaded_file is not None else ""
+            image_bytes = uploaded_file.getvalue() if uploaded_file is not None and use_gemini_vision else None
+            manual_type_text = type_to_query.get(visual_type_label, "")
+
+            visual_query_data = build_visual_query_from_image(
+                image_bytes=image_bytes,
+                filename=filename,
+                manual_description=description,
+                manual_type_text=manual_type_text,
+            )
+
+            generated_query = visual_query_data.get("generated_query", "")
+            combined_description = visual_query_data.get("combined_description", "")
+            detected_types = visual_query_data.get("detected_types", [])
+            gemini_result = visual_query_data.get("gemini_result", {})
+
+            results, vision_info = visual_search_products(
+                products_df,
+                description=combined_description,
+                filename=filename,
+                top_k=8,
+                detected_types=detected_types,
+            )
+
+            vision_info["gemini_result"] = gemini_result
+            vision_info["generated_query"] = generated_query
+            vision_info["manual_type"] = visual_type_label
+
+            st.session_state.last_results = results
+            st.session_state.last_vision_info = vision_info
+
+            if generated_query:
+                try:
+                    ai_results, query_info, answer = recommend_products_with_new_ai(products_df, generated_query)
+
+                    # Görsel eşleşmesi boş değilse onu koruyoruz.
+                    # Böylece buzdolabı görselinde müşteri AI yanlışlıkla TV'ye kayarsa liste bozulmaz.
+                    if results is not None and not results.empty:
+                        st.session_state.last_results = results
+                    elif ai_results is not None and not ai_results.empty:
+                        st.session_state.last_results = ai_results
+
+                    st.session_state.last_query_info = query_info
+                    st.session_state.customer_messages.append(
+                        {
+                            "role": "user",
+                            "text": f"Görsel arama: {generated_query}",
+                        }
+                    )
+                    st.session_state.customer_messages.append(
+                        {
+                            "role": "assistant",
+                            "text": answer,
+                        }
+                    )
+
+                except Exception as e:
+                    st.warning(f"Görsel arama çalıştı ama müşteri AI pipeline bağlantısında hata oluştu: {e}")
+
+            st.rerun()
+
+    with right:
+        st.markdown("### Görsel Arama Sonucu")
+
+        if st.session_state.last_vision_info:
+            with st.expander("Vision Info", expanded=False):
+                st.json(st.session_state.last_vision_info)
+
+        if st.session_state.last_results is None or st.session_state.last_results.empty:
+            st.info("Henüz görsel arama sonucu yok.")
+        else:
+            for index, row in st.session_state.last_results.iterrows():
+                product_card(row, f"vision_{index}")
 
 
 # =====================================================
@@ -2304,6 +3429,7 @@ products_df = prepare_products(load_products())
 if not st.session_state.logged_in:
     render_login_page()
 else:
+    render_app_header()
     render_topbar()
 
     if st.session_state.cart_notice:
@@ -2335,6 +3461,15 @@ else:
 
     elif page == "products":
         products_page(products_df)
+
+    elif page == "memory":
+        memory_page()
+
+    elif page == "metrics":
+        metrics_page()
+
+    elif page == "vision":
+        vision_page(products_df)
 
     else:
         dashboard(products_df)

@@ -1,0 +1,100 @@
+{
+  "demo@nevade.com": {
+    "created_at": "2026-07-08 10:28:19",
+    "updated_at": "2026-07-08 10:28:19",
+    "query_count": 1,
+    "last_queries": [
+      {
+        "timestamp": "2026-07-08 10:28:19",
+        "query": "Öğrenci için laptop var mı?"
+      }
+    ],
+    "preferred_product_types": {
+      "laptop": 1
+    },
+    "preferred_brands": {},
+    "preferred_payment": {
+      "lowest_monthly": 1
+    },
+    "last_budget": 25000,
+    "last_product_type": "laptop",
+    "last_brand": null,
+    "last_intent": "general_question",
+    "last_use_cases": [
+      "ogrenci"
+    ],
+    "top_product_type": "laptop",
+    "top_brand": null,
+    "top_payment": "lowest_monthly"
+  },
+  "admin@nevade.com": {
+    "created_at": "2026-07-08 10:36:20",
+    "updated_at": "2026-07-09 16:39:39",
+    "query_count": 32,
+    "last_queries": [
+      {
+        "timestamp": "2026-07-09 15:17:44",
+        "query": "  “Öğrenci için 25000 TL laptop var mı senetli olsun”"
+      },
+      {
+        "timestamp": "2026-07-09 15:17:57",
+        "query": "“Daha ucuzu var mı?”"
+      },
+      {
+        "timestamp": "2026-07-09 15:18:21",
+        "query": "“100 bin TL çeyiz paketi yap”"
+      },
+      {
+        "timestamp": "2026-07-09 15:18:51",
+        "query": "buzdolabi televizyon buzdolabi ekran goruntusu 2026 07 08 113543 png"
+      },
+      {
+        "timestamp": "2026-07-09 15:19:51",
+        "query": "Bugün hangi ürünleri önermeliyim?"
+      },
+      {
+        "timestamp": "2026-07-09 15:20:14",
+        "query": "Buzdolabı stokta var mı?"
+      },
+      {
+        "timestamp": "2026-07-09 16:23:11",
+        "query": "50000 tl çeyiz paketi öner"
+      },
+      {
+        "timestamp": "2026-07-09 16:28:56",
+        "query": "50000 tl çeyiz"
+      },
+      {
+        "timestamp": "2026-07-09 16:35:04",
+        "query": "50000 tl çeyiz paketi yap"
+      },
+      {
+        "timestamp": "2026-07-09 16:39:39",
+        "query": "50000 TL çeyiz seti öner"
+      }
+    ],
+    "preferred_product_types": {
+      "laptop": 5,
+      "buzdolabi": 9,
+      "televizyon": 13
+    },
+    "preferred_brands": {
+      "xiaomi": 11,
+      "beko": 1
+    },
+    "preferred_payment": {
+      "lowest_monthly": 10,
+      "lowest_total": 1
+    },
+    "last_budget": 50000,
+    "last_product_type": "buzdolabi",
+    "last_brand": "xiaomi",
+    "last_intent": "product_search",
+    "last_use_cases": [
+      "ceyiz"
+    ],
+    "top_product_type": "televizyon",
+    "top_brand": "xiaomi",
+    "top_payment": "lowest_monthly"
+  }
+}

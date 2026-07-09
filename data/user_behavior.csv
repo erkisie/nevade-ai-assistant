@@ -1,6 +1,38 @@
-user_id,product_id,action
-1,1,favorite
-1,2,cart
-1,4,favorite
-1,5,view
-1,8,cart
+user_id,product_id,action,timestamp,role,query,primary_intent,product_types,brands,budget,payment_priority,result_count,top_product,guardrail_category,strict_filter_active,semantic_active,package_type
+1,1.0,favorite,,,,,,,,,,,,,,
+1,2.0,cart,,,,,,,,,,,,,,
+1,4.0,favorite,,,,,,,,,,,,,,
+1,5.0,view,,,,,,,,,,,,,,
+1,8.0,cart,,,,,,,,,,,,,,
+admin@nevade.com,,,2026-07-08 10:52:06,customer,Öğrenci için 25000 TL laptop var mı senetli olsun,senet,laptop,xiaomi,25000.0,lowest_monthly,3.0,Lenovo IdeaPad Slim 3 Laptop,safe,True,False,
+admin@nevade.com,,,2026-07-08 10:52:26,customer,Daha ucuzu var mı?,price,laptop,xiaomi,25000.0,lowest_monthly,3.0,Lenovo IdeaPad Slim 3 Laptop,competitor_comparison,True,False,
+admin@nevade.com,,,2026-07-08 11:16:23,customer,Öğrenci için 25000 TL laptop var mı senetli olsun,senet,laptop,xiaomi,25000.0,lowest_monthly,3.0,Lenovo IdeaPad Slim 3 Laptop,safe,True,False,
+admin@nevade.com,,,2026-07-08 11:16:41,customer,"Trendyol’da bu daha ucuz sizden niye alayım, buzdolabı var mı?",price,buzdolabi,xiaomi,25000.0,lowest_monthly,3.0,Vestel Ekonomik Buzdolabı 420 L,competitor_comparison,True,False,
+admin@nevade.com,,,2026-07-08 11:35:53,customer,televizyon ,general_question,televizyon,,,,3.0,Samsung 50 inç 4K Smart TV,safe,True,False,
+admin@nevade.com,,,2026-07-08 11:36:04,customer,televizyon ,general_question,televizyon,,,,3.0,Samsung 50 inç 4K Smart TV,safe,True,False,
+admin@nevade.com,,,2026-07-08 11:36:09,customer,televizyon ,general_question,televizyon,,,,3.0,Samsung 50 inç 4K Smart TV,safe,True,False,
+admin@nevade.com,,,2026-07-08 11:42:39,customer,mini buzdolabi minibar icecek sogutucu kucuk buzdolabi Mini buzdolabı / içecek soğutucu Ekran görüntüsü 2026-07-08 113543.png,general_question,buzdolabi,xiaomi,8113.0,,3.0,Beko No Frost Buzdolabı 500 L,safe,True,False,
+admin@nevade.com,,,2026-07-08 13:54:54,customer,televizyon ekran goruntusu 2026 07 08 113543 png,general_question,televizyon,,8113.0,,3.0,Onvo 43 inç Smart TV,safe,True,False,
+admin@nevade.com,,,2026-07-08 14:29:52,customer,televizyon ekran goruntusu 2026 07 08 113543 png,general_question,televizyon,,8113.0,,3.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 14:29:59,customer,buzdolabi televizyon ekran goruntusu 2026 07 08 113543 png,general_question,"televizyon,buzdolabi",,8113.0,,1.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 14:30:24,customer,buzdolabi televizyon buzdolabi ekran goruntusu 2026 07 08 113543 png,general_question,"televizyon,buzdolabi",,8113.0,,1.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 14:39:36,customer,televizyon ekran goruntusu 2026 07 08 113543 png,general_question,televizyon,,8113.0,,3.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 14:44:56,customer,televizyon ekran goruntusu 2026 07 08 113543 png,general_question,televizyon,,8113.0,,3.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 14:51:52,customer,televizyon ekran goruntusu 2026 07 08 113543 png,general_question,televizyon,,8113.0,,3.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 14:59:02,customer,Senetli ödeme seçeneğini göster,senet,televizyon,xiaomi,8113.0,lowest_monthly,3.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-08 15:00:03,customer,Havale avantajı olan seçenekleri göster,cash_transfer,televizyon,xiaomi,8113.0,lowest_total,3.0,Onvo 43 inç Smart TV,rude_language,True,True,
+admin@nevade.com,,,2026-07-09 14:20:43,customer,50000 tl çeyiz paketi istiyorum,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-09 14:21:36,store,beko buzdolabı senetle olur mu,senet,buzdolabi,beko,,lowest_monthly,3.0,Beko No Frost Buzdolabı 500 L,safe,True,True,
+admin@nevade.com,,,2026-07-09 14:47:44,customer,5000 tl çeyiz paketi,general_question,,,5000.0,,6.0,Bosch Bulaşık Makinesi 4 Program,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-09 14:56:31,customer,Daha ucuzu var mı?,price,buzdolabi,xiaomi,5000.0,lowest_monthly,3.0,Vestel Ekonomik Buzdolabı 420 L,competitor_comparison,True,True,
+admin@nevade.com,,,2026-07-09 15:01:37,customer,5000 tl buzdolabı öner,product_search,buzdolabi,,5000.0,,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+admin@nevade.com,,,2026-07-09 15:17:44,customer,  “Öğrenci için 25000 TL laptop var mı senetli olsun”,senet,laptop,xiaomi,25000.0,lowest_monthly,4.0,Asus Vivobook 15 Laptop,safe,True,True,
+admin@nevade.com,,,2026-07-09 15:17:57,customer,“Daha ucuzu var mı?”,price,laptop,xiaomi,25000.0,lowest_monthly,4.0,Lenovo IdeaPad Slim 3 Laptop,competitor_comparison,True,True,
+admin@nevade.com,,,2026-07-09 15:18:21,customer,“100 bin TL çeyiz paketi yap”,general_question,,,100000.0,,6.0,Bosch Bulaşık Makinesi 4 Program,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-09 15:18:51,customer,buzdolabi televizyon buzdolabi ekran goruntusu 2026 07 08 113543 png,general_question,"televizyon,buzdolabi",,8113.0,,1.0,Onvo 43 inç Smart TV,safe,True,True,
+admin@nevade.com,,,2026-07-09 15:19:51,store,Bugün hangi ürünleri önermeliyim?,product_search,,,,,8.0,Beko No Frost Buzdolabı 500 L,safe,False,True,
+admin@nevade.com,,,2026-07-09 15:20:14,store,Buzdolabı stokta var mı?,stock,buzdolabi,xiaomi,8113.0,lowest_monthly,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+admin@nevade.com,,,2026-07-09 16:23:11,customer,50000 tl çeyiz paketi öner,product_search,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-09 16:28:56,customer,50000 tl çeyiz,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-09 16:35:04,customer,50000 tl çeyiz paketi yap,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-09 16:39:39,customer,50000 TL çeyiz seti öner,product_search,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz

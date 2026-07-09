@@ -1,5 +1,5 @@
 import re
-import unicodedata
+from difflib import SequenceMatcher
 
 
 # =====================================================
@@ -12,405 +12,581 @@ def normalize_text(text):
 
     text = str(text).lower().strip()
 
-    replacements = str.maketrans("çğıöşüâîû", "cgiosuaiu")
-    text = text.translate(replacements)
+    replacements = {
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u",
+        "â": "a",
+        "î": "i",
+        "û": "u",
+    }
 
-    text = unicodedata.normalize("NFKD", text)
-    text = text.encode("ascii", "ignore").decode("utf-8")
+    for tr_char, simple_char in replacements.items():
+        text = text.replace(tr_char, simple_char)
 
     text = re.sub(r"[^a-z0-9\s]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text)
 
-    return text
+    return text.strip()
+
+
+def similarity(a, b):
+    a = normalize_text(a)
+    b = normalize_text(b)
+
+    if not a or not b:
+        return 0
+
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def contains_any(text, keywords):
+    text = normalize_text(text)
+
+    for keyword in keywords:
+        if normalize_text(keyword) in text:
+            return True
+
+    return False
 
 
 # =====================================================
 # DICTIONARIES
 # =====================================================
 
-CATEGORY_KEYWORDS = {
-    "Bilgisayar": [
-        "laptop",
-        "bilgisayar",
-        "notebook",
-        "macbook",
-        "pc",
-        "dizustu",
-    ],
-
-    "Telefon": [
-        "telefon",
-        "iphone",
-        "samsung",
-        "xiaomi",
-        "redmi",
-        "galaxy",
-        "cep telefonu",
-    ],
-
-    "Beyaz Eşya": [
-        "beyaz esya",
-        "buzdolabi",
-        "buz dolabi",
-        "camasir",
-        "camasir makinesi",
-        "bulasik",
-        "bulasik makinesi",
-        "firin",
-        "ankastre",
-        "mini firin",
-        "ceyiz",
-    ],
-
-    "Televizyon": [
-        "televizyon",
-        "tv",
-        "smart tv",
-        "oled",
-        "4k",
-        "ekran",
-    ],
-
-    "Küçük Ev Aleti": [
-        "blender",
-        "cay makinesi",
-        "tost makinesi",
-        "supurge",
-        "robot supurge",
-        "airfryer",
-        "kahve makinesi",
-        "utu",
-        "mutfak",
-    ],
-}
-
-
-PRODUCT_TYPE_KEYWORDS = {
-    "laptop": [
-        "laptop",
-        "bilgisayar",
-        "notebook",
-        "macbook",
-        "dizustu",
-    ],
-
-    "telefon": [
-        "telefon",
-        "iphone",
-        "galaxy",
-        "redmi",
-        "xiaomi",
-        "cep telefonu",
-    ],
-
-    "buzdolabi": [
-        "buzdolabi",
-        "buz dolabi",
-        "no frost",
-        "sogutucu",
-    ],
-
-    "camasir_makinesi": [
-        "camasir",
-        "camasir makinesi",
-        "yikama",
-    ],
-
-    "bulasik_makinesi": [
-        "bulasik",
-        "bulasik makinesi",
-    ],
-
-    "firin": [
-        "firin",
-        "ankastre",
-        "ankastre firin",
-        "mini firin",
-        "elektrikli firin",
-    ],
-
-    "televizyon": [
-        "televizyon",
-        "tv",
-        "smart tv",
-        "oled",
-        "4k",
-    ],
-
-    "supurge": [
-        "supurge",
-        "robot supurge",
-        "dyson",
-        "philips supurge",
-    ],
-
-    "blender": [
-        "blender",
-        "blender seti",
-    ],
-
-    "cay_makinesi": [
-        "cay makinesi",
-        "cayci",
-    ],
-
-    "tost_makinesi": [
-        "tost makinesi",
-        "tost",
-    ],
-
-    "utu": [
-        "utu",
-        "buharli utu",
-    ],
-}
-
-
-PRODUCT_TYPE_LABELS = {
-    "laptop": "laptop",
-    "telefon": "telefon",
-    "buzdolabi": "buzdolabı",
-    "camasir_makinesi": "çamaşır makinesi",
-    "bulasik_makinesi": "bulaşık makinesi",
-    "firin": "fırın",
-    "televizyon": "televizyon",
-    "supurge": "süpürge",
-    "blender": "blender",
-    "cay_makinesi": "çay makinesi",
-    "tost_makinesi": "tost makinesi",
-    "utu": "ütü",
-}
-
-
 BRAND_ALIASES = {
-    "apple": "Apple",
-    "iphone": "Apple",
-    "macbook": "Apple",
-
-    "samsung": "Samsung",
-    "galaxy": "Samsung",
-
-    "xiaomi": "Xiaomi",
-    "redmi": "Xiaomi",
-
-    "lenovo": "Lenovo",
-    "lenova": "Lenovo",
-    "ideapad": "Lenovo",
-
-    "beko": "Beko",
-    "arcelik": "Arçelik",
-    "arcelik": "Arçelik",
-    "vestel": "Vestel",
-    "bosch": "Bosch",
-    "siemens": "Siemens",
-
-    "philips": "Philips",
-    "fakir": "Fakir",
-    "arzum": "Arzum",
-    "tefal": "Tefal",
+    "apple": ["apple", "iphone", "macbook", "ipad", "airpods"],
+    "samsung": ["samsung", "samsun", "samung", "galaxy"],
+    "lenovo": ["lenovo", "lenova", "thinkpad", "ideapad"],
+    "hp": ["hp", "hewlett", "pavilion", "victus"],
+    "asus": ["asus", "asuz", "rog", "vivobook", "zenbook"],
+    "xiaomi": ["xiaomi", "redmi", "mi"],
+    "beko": ["beko"],
+    "arcelik": ["arcelik", "arçelik"],
+    "vestel": ["vestel"],
+    "bosch": ["bosch"],
+    "lg": ["lg"],
+    "philips": ["philips", "filips"],
+    "dyson": ["dyson"],
 }
 
+PRODUCT_TYPE_ALIASES = {
+    "telefon": [
+        "telefon", "cep telefonu", "iphone", "samsung telefon", "android",
+        "akilli telefon", "galaxy", "redmi"
+    ],
+    "laptop": [
+        "laptop", "bilgisayar", "notebook", "macbook", "oyuncu bilgisayari",
+        "is bilgisayari", "ogrenci bilgisayari", "gaming laptop"
+    ],
+    "tablet": [
+        "tablet", "ipad"
+    ],
+    "televizyon": [
+        "televizyon", "tv", "smart tv", "led tv", "oled", "qled"
+    ],
+    "buzdolabi": [
+        "buzdolabi", "buz dolabi", "no frost", "dolap"
+    ],
+    "camasir_makinesi": [
+        "camasir makinesi", "çamaşır makinesi", "camasir", "makine"
+    ],
+    "bulasik_makinesi": [
+        "bulasik makinesi", "bulaşık makinesi", "bulasik"
+    ],
+    "klima": [
+        "klima", "inverter klima"
+    ],
+    "supurge": [
+        "supurge", "süpürge", "robot supurge", "dikey supurge", "dyson"
+    ],
+    "kulaklik": [
+        "kulaklik", "airpods", "bluetooth kulaklik"
+    ],
+    "cay_makinesi": [
+        "cay makinesi", "çay makinesi", "cayci"
+    ],
+}
 
-PAYMENT_KEYWORDS = {
+CATEGORY_ALIASES = {
+    "Elektronik": [
+        "telefon", "laptop", "bilgisayar", "tablet", "televizyon",
+        "kulaklik", "akilli saat", "elektronik"
+    ],
+    "Beyaz Eşya": [
+        "buzdolabi", "camasir", "bulasik", "kurutma", "firin",
+        "ocak", "beyaz esya"
+    ],
+    "Ev Elektroniği": [
+        "supurge", "robot supurge", "klima", "cay makinesi",
+        "kahve makinesi", "ev elektronigi"
+    ],
+    "Mobilya": [
+        "koltuk", "masa", "sandalye", "yatak", "dolap", "mobilya"
+    ],
+}
+
+INTENT_KEYWORDS = {
+    "product_search": [
+        "oner", "oneri", "tavsiye", "ne alayim", "hangisi iyi",
+        "hangi urun", "urun bakiyorum", "lazim", "ariyorum"
+    ],
+    "price": [
+        "fiyat", "ne kadar", "kac tl", "ucret", "pahali", "ucuz",
+        "indirim", "kampanya"
+    ],
+    "installment": [
+        "taksit", "kredi karti", "kartla", "6 taksit", "9 taksit",
+        "aylik odeme"
+    ],
     "senet": [
-        "senet",
-        "senetli",
-        "senetle",
-        "elden odeme",
+        "senet", "senetli", "elden taksit", "magaza taksidi",
+        "aylik dusuk", "pesinatsiz"
     ],
-
-    "havale": [
-        "havale",
-        "eft",
+    "cash_transfer": [
+        "havale", "eft", "pesin", "nakit", "toplam uygun",
+        "en uygun fiyat"
     ],
-
-    "taksit": [
-        "taksit",
-        "aylik",
-        "aylik odeme",
+    "stock": [
+        "stok", "stokta", "var mi", "mevcut mu", "hemen alabilir miyim"
     ],
-
-    "pesin": [
-        "pesin",
-        "nakit",
+    "shipping": [
+        "kargo", "teslimat", "ne zaman gelir", "kac gunde gelir",
+        "teslim edilir"
     ],
-
-    "kart": [
-        "kart",
-        "kredi karti",
+    "return_cancel": [
+        "iade", "iptal", "vazgectim", "geri vermek", "degisim"
+    ],
+    "invoice": [
+        "fatura", "e fatura", "efatura", "faturam"
+    ],
+    "order_tracking": [
+        "siparis", "siparisim", "nerede", "takip", "kargom nerede",
+        "siparis durumu"
+    ],
+    "comparison": [
+        "karsilastir", "farki ne", "hangisi daha iyi", "mi daha iyi",
+        "versus", "vs"
+    ],
+    "warranty": [
+        "garanti", "servis", "yetkili servis"
+    ],
+    "customer_support": [
+        "yardim", "destek", "musteri hizmetleri", "canli destek"
     ],
 }
 
 
-PACKAGE_KEYWORDS = [
-    "paket",
-    "paketi",
-    "set",
-    "seti",
-    "kombin",
-    "kombin yap",
-    "ceyiz paketi",
-    "ceyiz seti",
-    "alisveris listesi",
-]
+USE_CASE_KEYWORDS = {
+    "ogrenci": [
+        "ogrenci", "okul", "ders", "odev", "universite"
+    ],
+    "oyun": [
+        "oyun", "gaming", "fps", "gta", "valorant", "pubg"
+    ],
+    "is": [
+        "is", "ofis", "excel", "rapor", "toplanti", "home office"
+    ],
+    "ceyiz": [
+        "ceyiz", "evleniyorum", "ev kuruyorum", "yeni ev"
+    ],
+    "aile": [
+        "aile", "kalabalik", "genis aile", "cocuklu"
+    ],
+    "butce_dostu": [
+        "uygun", "ucuz", "butce", "fiyat performans", "ekonomik"
+    ],
+    "premium": [
+        "premium", "en iyi", "kaliteli", "ust segment", "performansli"
+    ],
+}
+
+
+PAYMENT_PRIORITY_KEYWORDS = {
+    "lowest_total": [
+        "en uygun", "en ucuz", "toplam az", "pesin", "havale",
+        "nakit", "fazla odemeyeyim"
+    ],
+    "lowest_monthly": [
+        "aylik dusuk", "aylik az", "senet", "taksit", "pesinatsiz",
+        "kolay odeme", "ay ay"
+    ],
+    "card_installment": [
+        "kredi karti", "kartla", "6 taksit", "kart taksiti"
+    ],
+}
 
 
 # =====================================================
-# EXTRACTION FUNCTIONS
+# ENTITY EXTRACTION
 # =====================================================
 
-def extract_budget(query):
-    q = normalize_text(query)
+def extract_budget(text):
+    normalized = normalize_text(text)
 
-    match = re.search(r"(\d+)\s*(bin|k)", q)
-    if match:
-        return int(match.group(1)) * 1000
+    patterns = [
+        r"(\d{1,3}(?:[.\s]\d{3})+|\d{4,7})\s*(tl|lira)?",
+        r"(\d{1,3})\s*bin",
+    ]
 
-    numbers = re.findall(r"\d[\d\.\,]*", q)
+    budgets = []
 
-    if not numbers:
+    for pattern in patterns:
+        matches = re.findall(pattern, normalized)
+
+        for match in matches:
+            if isinstance(match, tuple):
+                number = match[0]
+            else:
+                number = match
+
+            if "bin" in pattern:
+                try:
+                    budgets.append(int(number) * 1000)
+                except Exception:
+                    pass
+            else:
+                clean_number = re.sub(r"[^\d]", "", str(number))
+                try:
+                    value = int(clean_number)
+                    if value >= 500:
+                        budgets.append(value)
+                except Exception:
+                    pass
+
+    if not budgets:
         return None
 
-    raw = numbers[0].replace(".", "").replace(",", "")
-
-    try:
-        value = int(raw)
-    except Exception:
-        return None
-
-    if value < 1000:
-        return None
-
-    return value
+    return max(budgets)
 
 
-def extract_category(q):
-    for category, keywords in CATEGORY_KEYWORDS.items():
-        for keyword in keywords:
-            if normalize_text(keyword) in q:
-                return category
+def extract_brands(text):
+    normalized = normalize_text(text)
+    found = []
 
-    return None
+    for brand, aliases in BRAND_ALIASES.items():
+        for alias in aliases:
+            alias_norm = normalize_text(alias)
 
-
-def extract_product_type(q):
-    for product_type, keywords in PRODUCT_TYPE_KEYWORDS.items():
-        for keyword in keywords:
-            if normalize_text(keyword) in q:
-                return product_type
-
-    return None
-
-
-def extract_brand(q):
-    for alias, brand in BRAND_ALIASES.items():
-        if normalize_text(alias) in q:
-            return brand
-
-    return None
-
-
-def extract_payments(q):
-    payments = []
-
-    for payment, keywords in PAYMENT_KEYWORDS.items():
-        for keyword in keywords:
-            if normalize_text(keyword) in q:
-                payments.append(payment)
+            if alias_norm in normalized:
+                found.append(brand)
                 break
 
-    return list(set(payments))
+            for word in normalized.split():
+                if similarity(word, alias_norm) >= 0.86:
+                    found.append(brand)
+                    break
+
+    return list(dict.fromkeys(found))
 
 
-def is_package_query(q):
-    return any(normalize_text(word) in q for word in PACKAGE_KEYWORDS)
+def extract_product_types(text):
+    normalized = normalize_text(text)
+    found = []
+
+    for product_type, aliases in PRODUCT_TYPE_ALIASES.items():
+        for alias in aliases:
+            alias_norm = normalize_text(alias)
+
+            if alias_norm in normalized:
+                found.append(product_type)
+                break
+
+            for word in normalized.split():
+                if similarity(word, alias_norm) >= 0.88:
+                    found.append(product_type)
+                    break
+
+    return list(dict.fromkeys(found))
 
 
-# =====================================================
-# MAIN ANALYSIS
-# =====================================================
+def extract_categories(text):
+    normalized = normalize_text(text)
+    found = []
 
-def analyze_query(query):
-    q = normalize_text(query)
+    for category, aliases in CATEGORY_ALIASES.items():
+        for alias in aliases:
+            if normalize_text(alias) in normalized:
+                found.append(category)
+                break
 
-    product_type = extract_product_type(q)
-    category = extract_category(q)
+    return list(dict.fromkeys(found))
 
-    if category is None:
-        if product_type in ["buzdolabi", "camasir_makinesi", "bulasik_makinesi", "firin"]:
-            category = "Beyaz Eşya"
 
-        elif product_type in ["blender", "cay_makinesi", "tost_makinesi", "supurge", "utu"]:
-            category = "Küçük Ev Aleti"
+def extract_use_cases(text):
+    normalized = normalize_text(text)
+    found = []
 
-        elif product_type == "laptop":
-            category = "Bilgisayar"
+    for use_case, keywords in USE_CASE_KEYWORDS.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in normalized:
+                found.append(use_case)
+                break
 
-        elif product_type == "telefon":
-            category = "Telefon"
+    return list(dict.fromkeys(found))
 
-        elif product_type == "televizyon":
-            category = "Televizyon"
 
-    budget = extract_budget(query)
-    brand = extract_brand(q)
-    payments = extract_payments(q)
-    package = is_package_query(q)
-
-    return {
-        "original_query": query,
-        "normalized_query": q,
-        "intent": "product_search",
-        "category": category,
-        "product_type": product_type,
-        "product_type_label": PRODUCT_TYPE_LABELS.get(product_type),
-        "brand": brand,
-        "budget": budget,
-        "payments": payments,
-        "is_package": package,
+def extract_payment_priority(text):
+    normalized = normalize_text(text)
+    scores = {
+        "lowest_total": 0,
+        "lowest_monthly": 0,
+        "card_installment": 0,
     }
 
+    for priority, keywords in PAYMENT_PRIORITY_KEYWORDS.items():
+        for keyword in keywords:
+            if normalize_text(keyword) in normalized:
+                scores[priority] += 1
+
+    best = max(scores, key=scores.get)
+
+    if scores[best] == 0:
+        return None
+
+    return best
+
+
+def extract_order_number(text):
+    normalized = str(text).upper()
+
+    patterns = [
+        r"NVD[-\s]?\d{3,8}",
+        r"SIP[-\s]?\d{3,8}",
+        r"ORDER[-\s]?\d{3,8}",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+
+        if match:
+            return match.group(0).replace(" ", "-")
+
+    return None
+
 
 # =====================================================
-# QUERY CLASSIFICATION
+# INTENT DETECTION
 # =====================================================
 
-def is_category_only_query(query_info):
-    q = query_info.get("normalized_query", "")
-    words = q.split()
+def detect_intents(text):
+    normalized = normalize_text(text)
 
-    has_category = query_info.get("category") is not None
-    has_product_type = query_info.get("product_type") is not None
-    has_budget = query_info.get("budget") is not None
-    has_brand = query_info.get("brand") is not None
-    has_payment = len(query_info.get("payments", [])) > 0
-    is_package = query_info.get("is_package", False)
+    intent_scores = {}
 
-    if not has_category:
-        return False
+    for intent, keywords in INTENT_KEYWORDS.items():
+        score = 0
 
-    if has_product_type or has_budget or has_brand or has_payment or is_package:
-        return False
+        for keyword in keywords:
+            keyword_norm = normalize_text(keyword)
 
-    if len(words) <= 3:
-        return True
+            if keyword_norm in normalized:
+                score += 2
 
-    return False
+            for word in normalized.split():
+                if similarity(word, keyword_norm) >= 0.90:
+                    score += 1
 
+        if score > 0:
+            intent_scores[intent] = score
 
-def is_budget_only_query(query_info):
-    has_budget = query_info.get("budget") is not None
-    has_category = query_info.get("category") is not None
-    has_product_type = query_info.get("product_type") is not None
-    has_brand = query_info.get("brand") is not None
-    has_payment = len(query_info.get("payments", [])) > 0
-    is_package = query_info.get("is_package", False)
+    if not intent_scores:
+        return ["general_question"]
 
-    return (
-        has_budget
-        and not has_category
-        and not has_product_type
-        and not has_brand
-        and not has_payment
-        and not is_package
+    sorted_intents = sorted(
+        intent_scores.items(),
+        key=lambda x: x[1],
+        reverse=True
     )
+
+    return [intent for intent, score in sorted_intents]
+
+
+# =====================================================
+# SENTIMENT / URGENCY
+# =====================================================
+
+def detect_urgency(text):
+    normalized = normalize_text(text)
+
+    urgent_keywords = [
+        "acil", "hemen", "bugun", "yarin", "simdi", "cok acil",
+        "misafirim gelecek", "lazim", "bekliyorum"
+    ]
+
+    if contains_any(normalized, urgent_keywords):
+        return "high"
+
+    return "normal"
+
+
+def detect_sentiment(text):
+    normalized = normalize_text(text)
+
+    negative_words = [
+        "kotu", "berbat", "sinir", "iptal", "sikayet", "gecikti",
+        "gelmedi", "memnun degilim", "problem", "sorun"
+    ]
+
+    positive_words = [
+        "tesekkur", "super", "guzel", "memnunum", "iyi", "begendim"
+    ]
+
+    negative_hit = sum(1 for word in negative_words if normalize_text(word) in normalized)
+    positive_hit = sum(1 for word in positive_words if normalize_text(word) in normalized)
+
+    if negative_hit > positive_hit:
+        return "negative"
+
+    if positive_hit > negative_hit:
+        return "positive"
+
+    return "neutral"
+
+
+# =====================================================
+# MAIN NLP ANALYSIS
+# =====================================================
+
+def analyze_user_query(text):
+    """
+    Kullanıcı sorusunu detaylı analiz eder.
+    App tarafında tek çağrılması gereken ana fonksiyon budur.
+    """
+
+    text = str(text or "").strip()
+
+    intents = detect_intents(text)
+    brands = extract_brands(text)
+    product_types = extract_product_types(text)
+    categories = extract_categories(text)
+    use_cases = extract_use_cases(text)
+    budget = extract_budget(text)
+    payment_priority = extract_payment_priority(text)
+    order_number = extract_order_number(text)
+    urgency = detect_urgency(text)
+    sentiment = detect_sentiment(text)
+
+    analysis = {
+        "original_query": text,
+        "normalized_query": normalize_text(text),
+        "intents": intents,
+        "primary_intent": intents[0] if intents else "general_question",
+        "brands": brands,
+        "product_types": product_types,
+        "categories": categories,
+        "use_cases": use_cases,
+        "budget": budget,
+        "payment_priority": payment_priority,
+        "order_number": order_number,
+        "urgency": urgency,
+        "sentiment": sentiment,
+        "confidence": calculate_query_confidence(
+            intents=intents,
+            brands=brands,
+            product_types=product_types,
+            categories=categories,
+            use_cases=use_cases,
+            budget=budget,
+            payment_priority=payment_priority,
+            order_number=order_number,
+        ),
+    }
+
+    return analysis
+
+
+def calculate_query_confidence(
+    intents,
+    brands,
+    product_types,
+    categories,
+    use_cases,
+    budget,
+    payment_priority,
+    order_number,
+):
+    score = 0
+
+    if intents and intents[0] != "general_question":
+        score += 25
+
+    if brands:
+        score += 15
+
+    if product_types:
+        score += 20
+
+    if categories:
+        score += 10
+
+    if use_cases:
+        score += 10
+
+    if budget:
+        score += 10
+
+    if payment_priority:
+        score += 10
+
+    if order_number:
+        score += 20
+
+    return min(score, 100)
+
+
+# =====================================================
+# CUSTOMER-FRIENDLY SUMMARY
+# =====================================================
+
+def analysis_to_short_summary(analysis):
+    parts = []
+
+    if analysis.get("primary_intent"):
+        parts.append(f"Niyet: {analysis['primary_intent']}")
+
+    if analysis.get("brands"):
+        parts.append(f"Marka: {', '.join(analysis['brands'])}")
+
+    if analysis.get("product_types"):
+        parts.append(f"Ürün tipi: {', '.join(analysis['product_types'])}")
+
+    if analysis.get("categories"):
+        parts.append(f"Kategori: {', '.join(analysis['categories'])}")
+
+    if analysis.get("budget"):
+        parts.append(f"Bütçe: {analysis['budget']} TL")
+
+    if analysis.get("payment_priority"):
+        parts.append(f"Ödeme önceliği: {analysis['payment_priority']}")
+
+    if analysis.get("order_number"):
+        parts.append(f"Sipariş no: {analysis['order_number']}")
+
+    parts.append(f"Güven: %{analysis.get('confidence', 0)}")
+
+    return " | ".join(parts)
+
+
+# =====================================================
+# TEST
+# =====================================================
+
+if __name__ == "__main__":
+    tests = [
+        "Beko buzdolabı senetle olur mu, en avantajlı ödeme ne?",
+        "50 bin TL bütçem var çeyiz için buzdolabı ve çamaşır makinesi öner",
+        "Öğrenciyim 25 bin TL laptop lazım",
+        "NVD-1001 siparişim nerede?",
+        "Samsung televizyon stokta var mı havale fiyatı nedir?",
+        "Lenova laptop istiyorum oyun için taksit olur mu?",
+    ]
+
+    for test in tests:
+        result = analyze_user_query(test)
+        print("\nSORU:", test)
+        print(result)
+        print(analysis_to_short_summary(result))

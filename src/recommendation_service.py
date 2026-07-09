@@ -46,7 +46,7 @@ def apply_query_filters(df, query_info):
 
 def safe_generate_reason(row, user_query):
     try:
-        from src.llm_assistant import generate_llm_reason
+        from llm_answer_engine import generate_llm_reason
 
         return generate_llm_reason(row, user_query)
 
