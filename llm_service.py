@@ -2,6 +2,7 @@ import os
 import re
 import json
 import requests
+import time
 from dotenv import load_dotenv
 
 
@@ -20,6 +21,7 @@ DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 DEFAULT_OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
 
+GEMINI_LLM_ENABLED = os.getenv("USE_GEMINI_LLM", "true").lower() == "true"
 OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "false").lower() == "true"
 LLM_DEBUG = os.getenv("LLM_DEBUG", "false").lower() == "true"
 
@@ -90,7 +92,7 @@ def format_price(value):
 
 
 def is_llm_ready():
-    if os.getenv("GEMINI_API_KEY"):
+    if GEMINI_LLM_ENABLED and os.getenv("GEMINI_API_KEY"):
         return True
 
     if OLLAMA_ENABLED:
@@ -443,11 +445,16 @@ Müşteriyi sepete ekleme, alternatifleri karşılaştırma veya mağazadan stok
 # =====================================================
 
 def call_gemini(prompt):
+    """Gemini çağrısı. Yalnızca geçici 429 hatalarında kısa tekrar yapar.
+
+    Günlük ücretsiz kota dolduysa tekrar denemek kotayı açmaz; bu durumda
+    anlaşılır bir log basılır ve router fallback'e geçer.
+    """
+    if not GEMINI_LLM_ENABLED:
+        debug_print("Gemini LLM .env üzerinden kapalı: USE_GEMINI_LLM=false")
+        return None
+
     api_key = os.getenv("GEMINI_API_KEY")
-
-    debug_print("DEBUG GEMINI KEY VAR MI:", bool(api_key))
-    debug_print("DEBUG GEMINI MODEL:", DEFAULT_GEMINI_MODEL)
-
     if not api_key:
         debug_print("Gemini API key bulunamadı.")
         return None
@@ -455,46 +462,61 @@ def call_gemini(prompt):
     try:
         from google import genai
         from google.genai import types
+        from google.genai.errors import ClientError
 
         client = genai.Client(api_key=api_key)
+        max_attempts = 2
 
-        response = client.models.generate_content(
-            model=DEFAULT_GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.12,
-                top_p=0.75,
-                top_k=40,
-                max_output_tokens=1000,
-            ),
-        )
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = client.models.generate_content(
+                    model=DEFAULT_GEMINI_MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.12,
+                        top_p=0.75,
+                        top_k=40,
+                        max_output_tokens=1000,
+                    ),
+                )
 
-        if not response:
-            debug_print("Gemini response boş geldi.")
-            return None
+                answer = getattr(response, "text", None) if response else None
+                if not answer:
+                    return None
 
-        answer = getattr(response, "text", None)
+                answer = clean_llm_answer(answer)
+                if not is_good_answer(answer):
+                    debug_print("Gemini cevap kalite filtresinden geçemedi.")
+                    return None
 
-        debug_print("DEBUG GEMINI RAW ANSWER:", answer)
+                return answer
 
-        if not answer:
-            debug_print("Gemini text alanı boş.")
-            return None
+            except ClientError as e:
+                message = str(e)
+                is_429 = "429" in message or "RESOURCE_EXHAUSTED" in message
+                daily_quota = (
+                    "GenerateRequestsPerDayPerProjectPerModel-FreeTier" in message
+                    or "free_tier_requests" in message
+                    or "requests per day" in message.lower()
+                )
 
-        answer = clean_llm_answer(answer)
+                if is_429 and daily_quota:
+                    print(
+                        "Gemini günlük ücretsiz istek kotası doldu. "
+                        "Kota sıfırlanana kadar aynı proje/anahtarla Gemini yanıt veremez."
+                    )
+                    return None
 
-        debug_print("DEBUG CLEAN ANSWER:", answer)
-        debug_print("DEBUG QUALITY SCORE:", score_answer_quality(answer))
-        debug_print("DEBUG IS BAD:", is_bad_answer(answer))
+                if is_429 and attempt < max_attempts:
+                    print("Gemini geçici hız sınırına takıldı; 10 saniye sonra bir kez daha deneniyor.")
+                    time.sleep(10)
+                    continue
 
-        if not is_good_answer(answer):
-            debug_print("Gemini cevap kalite filtresinden geçemedi.")
-            return None
-
-        return answer
+                print("Gemini LLM hata:", repr(e))
+                return None
 
     except Exception as e:
-        print("Gemini LLM hata:", repr(e))
+        print("Gemini LLM başlatma hatası:", repr(e))
         return None
 
 

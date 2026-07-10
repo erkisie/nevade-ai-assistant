@@ -36,3 +36,31 @@ admin@nevade.com,,,2026-07-09 16:23:11,customer,50000 tl çeyiz paketi öner,pro
 admin@nevade.com,,,2026-07-09 16:28:56,customer,50000 tl çeyiz,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
 admin@nevade.com,,,2026-07-09 16:35:04,customer,50000 tl çeyiz paketi yap,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
 admin@nevade.com,,,2026-07-09 16:39:39,customer,50000 TL çeyiz seti öner,product_search,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-10 09:43:17,customer,50000 tl altı çeyiz paketi yapalım,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-10 09:51:00,customer,500000 tl çeyiz paketi istiyorum,general_question,,,500000.0,,6.0,Bosch Bulaşık Makinesi 4 Program,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-10 09:54:55,customer,buzdolabi,general_question,buzdolabi,,,,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+admin@nevade.com,,,2026-07-10 09:55:03,customer,televizyon,general_question,televizyon,,,,3.0,Onvo 43 inç Smart TV,safe,True,True,
+magaza@nevade.com,,,2026-07-10 11:54:13,customer,bana 10000 bilgisayar öner,product_search,laptop,lg,10000.0,,4.0,tset,safe,True,True,
+admin@nevade.com,,,2026-07-10 14:03:02,customer,50000 tl altı çeyiz paketi yap,general_question,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+admin@nevade.com,,,2026-07-10 14:03:51,customer,Bulaşık Makinesi öner,product_search,"camasir_makinesi,bulasik_makinesi",,,,0.0,,safe,True,True,
+admin@nevade.com,,,2026-07-10 14:09:11,customer,camasir makinesi camasir makinesi 7 kg oner,product_search,camasir_makinesi,,,,3.0,Beko 8 kg Çamaşır Makinesi,safe,True,True,
+admin@nevade.com,,,2026-07-10 14:14:13,customer,televizyon buzdolabi sogutucu ekran goruntusu 2026 07 08 113543 png,general_question,"televizyon,buzdolabi",,8113.0,,1.0,Onvo 43 inç Smart TV,safe,True,True,
+magaza@nevade.com,,,2026-07-10 14:20:45,store,beko buzdolabı senetle olur mu,senet,buzdolabi,beko,,lowest_monthly,3.0,Beko No Frost Buzdolabı 500 L,safe,True,True,
+magaza@nevade.com,,,2026-07-10 14:21:46,store,beko buzdolabı senetle olur mu?,senet,buzdolabi,beko,,lowest_monthly,3.0,Beko No Frost Buzdolabı 500 L,safe,True,True,
+magaza@nevade.com,,,2026-07-10 14:22:31,store,siemens buzdolabı,general_question,buzdolabi,,,,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+musteri@nevade.com,,,2026-07-10 14:37:44,customer,50000 tl altı çeyiz öner,product_search,,,50000.0,,6.0,Philips Elektrikli Süpürge 900 W,safe,False,False,ceyiz
+musteri@nevade.com,,,2026-07-10 14:38:42,store,beko buzdolabı senetle olur mu,senet,buzdolabi,beko,,lowest_monthly,3.0,Beko No Frost Buzdolabı 500 L,safe,True,True,
+musteri@nevade.com,,,2026-07-10 14:41:12,customer,buzdolabi televizyon soguk ekran goruntusu 2026 07 08 113543 png,general_question,"televizyon,buzdolabi",,8113.0,,1.0,Onvo 43 inç Smart TV,safe,True,True,
+musteri@nevade.com,,,2026-07-10 14:45:55,customer,beko,general_question,,beko,,,3.0,Beko Mini Fırın 45 L,safe,False,True,
+musteri@nevade.com,,,2026-07-10 14:46:10,customer,50000,general_question,,,50000.0,,8.0,Beko No Frost Buzdolabı 500 L,safe,False,True,
+musteri@nevade.com,,,2026-07-10 14:46:48,customer,beko 50000 tl altı fırın öner,product_search,,beko,50000.0,,3.0,Beko Mini Fırın 45 L,safe,True,True,
+musteri@nevade.com,,,2026-07-10 14:46:57,customer,Daha ucuzu var mı?,price,buzdolabi,xiaomi,50000.0,lowest_monthly,3.0,Vestel Ekonomik Buzdolabı 420 L,competitor_comparison,True,True,
+musteri@nevade.com,,,2026-07-10 14:46:59,customer,Daha ucuzu var mı?,price,buzdolabi,xiaomi,50000.0,lowest_monthly,3.0,Vestel Ekonomik Buzdolabı 420 L,competitor_comparison,True,True,
+musteri@nevade.com,,,2026-07-10 14:47:32,customer,ucuz fırın öner,product_search,,,,,3.0,Beko Mini Fırın 45 L,safe,True,True,
+musteri@nevade.com,,,2026-07-10 14:47:59,customer,50000 tl altı buzdolabı öner,product_search,buzdolabi,,50000.0,,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+musteri@nevade.com,,,2026-07-10 14:48:08,customer,Daha ucuzu var mı?,price,buzdolabi,xiaomi,50000.0,lowest_monthly,3.0,Vestel Ekonomik Buzdolabı 420 L,competitor_comparison,True,True,
+musteri@nevade.com,,,2026-07-10 14:49:21,customer,10000 tl bilgisayar öner,product_search,laptop,lg,10000.0,,4.0,tset,safe,True,True,
+musteri@nevade.com,,,2026-07-10 15:01:34,customer,50000 tl altı buzdolabı öner,product_search,buzdolabi,,50000.0,,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+admin@nevade.com,,,2026-07-10 15:16:00,customer,50000 tl altı buzdolabı öner,product_search,buzdolabi,,50000.0,,3.0,Siemens No Frost Buzdolabı 560 L,safe,True,True,
+admin@nevade.com,,,2026-07-10 15:16:38,store,beko buzdolabı senetle ürün öner,product_search,buzdolabi,beko,,lowest_monthly,3.0,Beko No Frost Buzdolabı 500 L,safe,True,True,
+admin@nevade.com,,,2026-07-10 15:20:49,customer,buzdolabi televizyon buzdolabi ekran goruntusu 2026 07 08 113543 png,general_question,"televizyon,buzdolabi",,8113.0,,1.0,Onvo 43 inç Smart TV,safe,True,True,

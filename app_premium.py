@@ -694,7 +694,7 @@ except Exception:
 # =====================================================
 
 st.set_page_config(
-    page_title="Nevade AI Premium Commerce Hub",
+    page_title="Nevade AI Commerce Hub",
     page_icon="N",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -706,30 +706,11 @@ st.set_page_config(
 # =====================================================
 
 def load_external_css(css_path="assets/app_design.css"):
-    """
-    Premium CSS yükleyici.
-    Canlı ortamda ana yol assets/app_design.css olmalı.
-    Yerel testte dosya farklı konumdaysa sessizce alternatifleri de dener.
-    """
-    candidate_paths = [
-        Path(css_path),
-        Path("app_design.css"),
-        Path("assets") / "app_design.css",
-        Path("Yapıştırılan kod.css"),
-    ]
-
-    for css_file in candidate_paths:
-        if css_file.exists():
-            st.markdown(
-                f"<style>{css_file.read_text(encoding='utf-8')}</style>",
-                unsafe_allow_html=True,
-            )
-            return
-
-    st.warning(
-        "CSS dosyası bulunamadı. Lütfen premium tasarım dosyasını "
-        "assets/app_design.css olarak kaydedin."
-    )
+    css_file = Path(css_path)
+    if css_file.exists():
+        st.markdown(f"<style>{css_file.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+    else:
+        st.warning(f"CSS dosyası bulunamadı: {css_path}")
 
 
 load_external_css()
@@ -748,7 +729,6 @@ def init_state(key, value):
 init_state("logged_in", False)
 init_state("user_email", "")
 init_state("user_role", "")
-init_state("current_user", {})
 init_state("page", "dashboard")
 init_state("cart", [])
 init_state("cart_notice", "")
@@ -769,6 +749,8 @@ init_state("last_fallback_answer", "")
 init_state("support_result", None)
 init_state("quick_action_history", [])
 init_state("customer_context", create_empty_customer_context())
+init_state("login_email", "admin@nevade.com")
+init_state("login_password", "1234")
 
 init_state(
     "orders",
@@ -822,9 +804,9 @@ init_state(
 
 
 USERS = {
-    "admin@nevade.com": {"password": "1234", "role": "admin"},
-    "magaza@nevade.com": {"password": "1234", "role": "store"},
-    "musteri@nevade.com": {"password": "1234", "role": "customer"},
+    "admin@nevade.com": {"password": "1234", "role": "admin", "name": "Sistem Yöneticisi"},
+    "magaza@nevade.com": {"password": "1234", "role": "store", "name": "Mağaza Personeli"},
+    "musteri@nevade.com": {"password": "1234", "role": "customer", "name": "Değerli Müşterimiz"},
 }
 
 
@@ -851,6 +833,25 @@ def escape_html_text(text):
 
 def text_to_html(text):
     return escape_html_text(text).replace("\n", "<br>")
+
+
+def render_iframe_html(html_code, height=680):
+    """Ham HTML'i güncel Streamlit API'siyle gösterir.
+
+    st.iframe bir URL içindir; ham HTML metni için resmi karşılık st.html'dir.
+    """
+    st.html(html_code)
+
+
+def md_block(html_text, **kwargs):
+    """
+    Çok satırlı HTML bloklarını st.markdown ile gönderirken satır başındaki
+    girintileri temizler. Girinti bırakılırsa Streamlit'in markdown ön işleyicisi
+    4+ boşluklu satırları kod bloğu sanıp HTML'i kaçırıyor (escape ediyor) —
+    tam olarak giriş ekranındaki boş/ham kod kutusu hatasının sebebi buydu.
+    """
+    cleaned_lines = [line.strip() for line in html_text.strip("\n").splitlines()]
+    st.markdown("\n".join(cleaned_lines), unsafe_allow_html=True)
 
 
 def go_page(page):
@@ -1754,7 +1755,6 @@ Personel aksiyonu:
         except Exception as e:
             print("LLM router hata:", e)
 
-    print("AI PROVIDER: FALLBACK")
     fallback_answer = store_fallback(question, row)
 
     if competitor_note:
@@ -1771,7 +1771,7 @@ def recommend_products_with_new_ai(products_df, user_query):
     4. Strict ürün filtresi kategori karışmasını engeller.
     5. Semantic search anlam bazlı aday havuzu oluşturur.
     6. Karar motoru doğrulanmış ürünleri seçer.
-    7. LLM cevap üretir; Gemini/LLM hata verirse temiz premium fallback çalışır.
+    7. LLM cevap üretir; kötü cevap olursa premium fallback çalışır.
     """
 
     guardrail_info = analyze_guardrail(user_query, mode="customer")
@@ -1920,7 +1920,6 @@ def recommend_products_with_new_ai(products_df, user_query):
             final_answer = None
 
     if not final_answer:
-        print("AI PROVIDER: FALLBACK")
         final_answer = create_customer_fallback_answer(decision_result)
 
     if competitor_note:
@@ -1978,13 +1977,53 @@ def ai_percent(row):
     return int(min(98, max(55, round(base))))
 
 
+def sub_head(text):
+    """Sayfa içi tutarlı, marka renkli küçük başlık."""
+    st.markdown(f'<div class="nv-subhead">{escape_html_text(text)}</div>', unsafe_allow_html=True)
+
+
+def render_page_head(badge, title, desc=None, stats=None):
+    """Tüm iç sayfalarda tekrar eden başlık + istatistik şeridi + ayraç bloğu."""
+    st.markdown(f'<div class="brand-badge">{escape_html_text(badge)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<h2 class="section-head">{escape_html_text(title)}</h2>', unsafe_allow_html=True)
+
+    if desc:
+        st.markdown(f'<p class="section-desc">{escape_html_text(desc)}</p>', unsafe_allow_html=True)
+
+    if stats:
+        chips = "".join(
+            f'<div class="nv-stat-chip"><b>{escape_html_text(value)}</b><span>{escape_html_text(label)}</span></div>'
+            for label, value in stats
+        )
+        st.markdown(f'<div class="nv-stat-strip">{chips}</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="nv-section-divider"></div>', unsafe_allow_html=True)
+
+
+def assist_tip(icon, title, text):
+    md_block(
+        f"""
+        <div class="nv-assist-tip">
+            <div class="nv-assist-tip-icon">{escape_html_text(icon)}</div>
+            <div class="nv-assist-tip-text">
+                <b>{escape_html_text(title)}</b>
+                <span>{escape_html_text(text)}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def chat_panel(messages, empty_text, title, mode):
     user_label = "Mağaza Yetkilisi" if mode == "store" else "Müşteri"
+    user_avatar = "M" if mode == "store" else "S"
 
     if not messages:
         body = f"""
         <div class="empty-chat">
             <div>
+                <div class="empty-avatar">N</div>
                 <div class="empty-title">Asistan hazır</div>
                 <div class="empty-text">{text_to_html(empty_text)}</div>
                 <div class="empty-suggestion">Örnek: Beko buzdolabı senetle olur mu?</div>
@@ -1997,13 +2036,18 @@ def chat_panel(messages, empty_text, title, mode):
         for message in messages:
             css_type = "user" if message.get("role") in ["user", "store"] else "ai"
             label = user_label if css_type == "user" else "Nevade AI"
+            avatar = user_avatar if css_type == "user" else "N"
+            time_label = escape_html_text(message.get("time", ""))
+            time_html = f'<div class="msg-time">{time_label}</div>' if time_label else ""
 
             bubbles.append(
                 f"""
                 <div class="msg-row {css_type}-row">
+                    <div class="msg-avatar {css_type}-avatar">{avatar}</div>
                     <div class="msg-bubble {css_type}-bubble">
                         <div class="msg-label">{label}</div>
                         <div>{text_to_html(message.get("text", ""))}</div>
+                        {time_html}
                     </div>
                 </div>
                 """
@@ -2012,6 +2056,7 @@ def chat_panel(messages, empty_text, title, mode):
         body = "".join(bubbles)
 
     status = "Yapay Zeka Aktif" if LLM_READY else "Algoritma Aktif"
+    message_count = len(messages)
 
     html_code = f"""
     <html>
@@ -2024,25 +2069,39 @@ def chat_panel(messages, empty_text, title, mode):
     }}
 
     .chat-shell {{
-        height: 640px;
+        height: 660px;
         border-radius: 34px;
         overflow: hidden;
         background:
-            radial-gradient(circle at 0% 0%, rgba(30,64,175,.09), transparent 36%),
-            linear-gradient(145deg, rgba(255,255,255,.96), rgba(255,255,255,.78));
-        border: 1px solid rgba(255,255,255,.82);
+            radial-gradient(circle at 0% 0%, rgba(20,92,224,.10), transparent 36%),
+            radial-gradient(circle at 100% 100%, rgba(255,122,30,.07), transparent 40%),
+            linear-gradient(145deg, rgba(255,255,255,.97), rgba(255,255,255,.80));
+        border: 1px solid rgba(255,255,255,.85);
         box-shadow:
-            0 34px 90px rgba(15,23,42,.10),
-            inset 0 1px 0 rgba(255,255,255,.90);
+            0 34px 90px rgba(10,25,60,.11),
+            inset 0 1px 0 rgba(255,255,255,.92);
+        display: flex;
+        flex-direction: column;
     }}
 
     .chat-header {{
-        padding: 24px 28px;
+        padding: 22px 26px;
         border-bottom: 1px solid rgba(226,232,240,.95);
         background:
-            radial-gradient(circle at 0% 0%, rgba(30,64,175,.11), transparent 38%),
-            radial-gradient(circle at 100% 0%, rgba(124,58,237,.11), transparent 38%),
+            radial-gradient(circle at 0% 0%, rgba(20,92,224,.11), transparent 38%),
+            radial-gradient(circle at 100% 0%, rgba(123,47,247,.11), transparent 38%),
             linear-gradient(135deg, #fff, #f8fafc);
+        position: relative;
+    }}
+
+    .chat-header:before {{
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 4px;
+        background: linear-gradient(115deg, #0A1F44, #145CE0, #7B2FF7, #FF3D8A, #FF7A1E);
+        background-size: 220% 100%;
+        animation: auroraFlow 9s linear infinite;
     }}
 
     .chat-topline {{
@@ -2052,89 +2111,127 @@ def chat_panel(messages, empty_text, title, mode):
         gap: 12px;
     }}
 
+    .chat-title-group {{ display:flex; align-items:center; gap:12px; }}
+
+    .chat-title-avatar {{
+        width: 40px; height: 40px; border-radius: 13px;
+        background: linear-gradient(135deg, #145CE0, #7B2FF7, #FF3D8A);
+        color: #fff; font-weight: 950; font-size: 17px;
+        display:flex; align-items:center; justify-content:center;
+        box-shadow: 0 10px 20px rgba(20,92,224,.25);
+    }}
+
     .chat-title {{
-        font-size: 23px;
+        font-size: 21px;
         font-weight: 950;
         color: #020617;
-        letter-spacing: -.6px;
+        letter-spacing: -.5px;
+    }}
+
+    .chat-title-count {{
+        font-size: 11.5px;
+        color: #64748b;
+        font-weight: 700;
+        margin-top: 1px;
     }}
 
     .chat-status {{
         padding: 8px 13px;
         border-radius: 999px;
-        background: rgba(30,64,175,.08);
-        border: 1px solid rgba(30,64,175,.14);
-        color: #1e3a8a;
+        background: rgba(20,92,224,.08);
+        border: 1px solid rgba(20,92,224,.16);
+        color: #145CE0;
         font-size: 11px;
         font-weight: 950;
         white-space: nowrap;
+        display:flex; align-items:center; gap:6px;
+    }}
+
+    .chat-status:before {{
+        content:"";
+        width:7px; height:7px; border-radius:99px;
+        background: radial-gradient(circle at 35% 30%, #fff, #29E47D 60%);
+        box-shadow: 0 0 0 3px rgba(41,228,125,.18);
     }}
 
     .chat-sub {{
-        margin-top: 8px;
+        margin-top: 9px;
         color: #64748b;
-        font-size: 13px;
+        font-size: 12.5px;
         line-height: 1.6;
         font-weight: 600;
     }}
 
     .chat-scroll {{
-        height: 525px;
+        flex: 1;
         overflow-y: auto;
-        padding: 26px;
+        padding: 24px;
         box-sizing: border-box;
         background:
-            radial-gradient(circle at 10% 12%, rgba(30,64,175,.05), transparent 35%),
-            radial-gradient(circle at 90% 80%, rgba(245,158,11,.06), transparent 36%),
+            radial-gradient(circle at 10% 12%, rgba(20,92,224,.05), transparent 35%),
+            radial-gradient(circle at 90% 80%, rgba(255,61,138,.05), transparent 36%),
             #fbfcfe;
         scroll-behavior: smooth;
     }}
 
     .msg-row {{
         display: flex;
+        gap: 10px;
         margin-bottom: 16px;
+        align-items: flex-end;
     }}
 
-    .user-row {{
-        justify-content: flex-end;
-    }}
+    .user-row {{ justify-content: flex-end; }}
+    .ai-row {{ justify-content: flex-start; }}
+    .user-row .msg-avatar {{ order: 2; }}
 
-    .ai-row {{
-        justify-content: flex-start;
+    .msg-avatar {{
+        width: 30px; height: 30px; min-width: 30px; border-radius: 10px;
+        display:flex; align-items:center; justify-content:center;
+        font-size: 12.5px; font-weight: 950; color:#fff;
     }}
+    .ai-avatar {{ background: linear-gradient(135deg, #145CE0, #7B2FF7); }}
+    .user-avatar {{ background: linear-gradient(135deg, #FF3D8A, #FF7A1E); }}
 
     .msg-bubble {{
-        max-width: 84%;
-        padding: 16px 19px;
-        border-radius: 24px;
-        font-size: 14px;
-        line-height: 1.78;
+        max-width: 78%;
+        padding: 14px 17px;
+        border-radius: 20px;
+        font-size: 13.7px;
+        line-height: 1.75;
         word-break: break-word;
         animation: fadeIn .22s ease-out;
     }}
 
     .user-bubble {{
         color: white;
-        background: linear-gradient(135deg, #1e3a8a, #4c1d95, #7c2d12);
-        border-bottom-right-radius: 7px;
-        box-shadow: 0 18px 38px rgba(30,64,175,.22);
+        background: linear-gradient(135deg, #0A1F44, #7B2FF7 55%, #FF3D8A);
+        border-bottom-right-radius: 6px;
+        box-shadow: 0 16px 32px rgba(123,47,247,.20);
     }}
 
     .ai-bubble {{
         color: #243b53;
         background: #ffffff;
         border: 1px solid rgba(226,232,240,.96);
-        border-bottom-left-radius: 7px;
-        box-shadow: 0 16px 35px rgba(30,64,175,.08);
+        border-bottom-left-radius: 6px;
+        box-shadow: 0 14px 30px rgba(10,25,60,.06);
     }}
 
     .msg-label {{
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 950;
-        letter-spacing: .45px;
+        letter-spacing: .4px;
         text-transform: uppercase;
-        opacity: .72;
-        margin-bottom: 7px;
+        opacity: .68;
+        margin-bottom: 6px;
+    }}
+
+    .msg-time {{
+        font-size: 9.5px;
+        opacity: .55;
+        margin-top: 7px;
+        font-weight: 700;
     }}
 
     .empty-chat {{
@@ -2148,41 +2245,48 @@ def chat_panel(messages, empty_text, title, mode):
         color: #64748b;
     }}
 
+    .empty-avatar {{
+        width: 54px; height: 54px; border-radius: 18px;
+        background: linear-gradient(135deg, #145CE0, #7B2FF7, #FF3D8A);
+        color: #fff; font-weight: 950; font-size: 22px;
+        display:flex; align-items:center; justify-content:center;
+        margin: 0 auto 14px;
+        box-shadow: 0 16px 30px rgba(123,47,247,.22);
+    }}
+
     .empty-title {{
-        font-size: 25px;
+        font-size: 22px;
         font-weight: 950;
         color: #020617;
         margin-bottom: 8px;
     }}
 
     .empty-text {{
-        font-size: 14px;
+        font-size: 13.5px;
         line-height: 1.7;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
     }}
 
     .empty-suggestion {{
-        max-width: 520px;
-        padding: 14px 18px;
-        border-radius: 18px;
-        background: rgba(30,64,175,.05);
-        border: 1px solid rgba(30,64,175,.12);
-        color: #1e3a8a;
-        font-size: 13px;
+        max-width: 480px;
+        padding: 13px 17px;
+        border-radius: 16px;
+        background: rgba(20,92,224,.05);
+        border: 1px solid rgba(20,92,224,.14);
+        color: #145CE0;
+        font-size: 12.5px;
         line-height: 1.55;
         font-weight: 800;
     }}
 
     @keyframes fadeIn {{
-        from {{
-            opacity: 0;
-            transform: translateY(6px);
-        }}
+        from {{ opacity: 0; transform: translateY(6px); }}
+        to {{ opacity: 1; transform: translateY(0); }}
+    }}
 
-        to {{
-            opacity: 1;
-            transform: translateY(0);
-        }}
+    @keyframes auroraFlow {{
+        0% {{ background-position: 0% 0%; }}
+        100% {{ background-position: 220% 0%; }}
     }}
     </style>
     </head>
@@ -2191,11 +2295,17 @@ def chat_panel(messages, empty_text, title, mode):
         <div class="chat-shell">
             <div class="chat-header">
                 <div class="chat-topline">
-                    <div class="chat-title">{escape_html_text(title)}</div>
+                    <div class="chat-title-group">
+                        <div class="chat-title-avatar">N</div>
+                        <div>
+                            <div class="chat-title">{escape_html_text(title)}</div>
+                            <div class="chat-title-count">{message_count} mesaj</div>
+                        </div>
+                    </div>
                     <div class="chat-status">{status}</div>
                 </div>
                 <div class="chat-sub">
-                    Yeni mesaj geldiğinde konuşma otomatik en alta kayar. Karar motoru veriyi doğrular, LLM cevabı premium dile çevirir.
+                    Karar motoru veriyi doğrular, LLM cevabı doğal dile çevirir. Yeni mesajda konuşma otomatik en alta kayar.
                 </div>
             </div>
 
@@ -2214,7 +2324,7 @@ def chat_panel(messages, empty_text, title, mode):
     </html>
     """
 
-    st.html(html_code)
+    render_iframe_html(html_code, height=680)
 
 
 
@@ -2224,7 +2334,7 @@ def visual_dataframe(df, title="Veri Tablosu", subtitle="", height=420):
     safe_sub = html.escape(str(subtitle or ""))
 
     if df is None or getattr(df, "empty", True):
-        st.markdown(
+        md_block(
             f"""
             <div class="nv-empty-state">
                 <div class="nv-empty-icon">⌁</div>
@@ -2241,7 +2351,7 @@ def visual_dataframe(df, title="Veri Tablosu", subtitle="", height=420):
     row_count = len(df)
     col_count = len(df.columns) if hasattr(df, "columns") else 0
 
-    st.markdown(
+    md_block(
         f"""
         <div class="nv-table-banner">
             <div class="nv-table-left">
@@ -2278,7 +2388,7 @@ def render_mini_cart_bar():
     ]
     module_html = "".join([f'<span class="nv-live-chip"><b>{html.escape(k)}</b>{html.escape(v)}</span>' for k, v in modules])
 
-    st.markdown(
+    md_block(
         f"""
         <div class="nv-livebar">
             <div class="nv-live-main">
@@ -2306,7 +2416,7 @@ def render_app_header():
     }.get(st.session_state.get("user_role", ""), current_user.get("role", "AI Panel"))
     user_email = st.session_state.get("user_email", "") or current_user.get("email", "") or "admin@nevade.com"
 
-    st.markdown(
+    md_block(
         f"""
         <section class="nv-hero-shell">
             <div class="nv-hero-bg-shape nv-shape-one"></div>
@@ -2361,7 +2471,7 @@ def render_topbar():
         ("vision", "Görsel", "◉"),
     ]
 
-    st.markdown(
+    md_block(
         f"""
         <div class="nv-nav-head">
             <div>
@@ -2374,23 +2484,21 @@ def render_topbar():
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="nv-nav-wrap">', unsafe_allow_html=True)
-    columns = st.columns(len(pages) + 1, gap="small")
-    for index, (page_id, label, icon) in enumerate(pages):
-        with columns[index]:
-            button_type = "primary" if st.session_state.get("page") == page_id else "secondary"
-            if st.button(f"{icon} {label}", use_container_width=True, key=f"nav_{page_id}", type=button_type):
-                go_page(page_id)
+    with st.container(border=True):
+        columns = st.columns(len(pages) + 1, gap="small")
+        for index, (page_id, label, icon) in enumerate(pages):
+            with columns[index]:
+                button_type = "primary" if st.session_state.get("page") == page_id else "secondary"
+                if st.button(f"{icon} {label}", use_container_width=True, key=f"nav_{page_id}", type=button_type):
+                    go_page(page_id)
 
-    with columns[-1]:
-        if st.button("⎋ Çıkış", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.user_email = ""
-            st.session_state.user_role = ""
-            st.session_state.current_user = {}
-            st.session_state.page = "dashboard"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+        with columns[-1]:
+            if st.button("⎋ Çıkış", use_container_width=True):
+                st.session_state.logged_in = False
+                st.session_state.user_email = ""
+                st.session_state.user_role = ""
+                st.session_state.page = "dashboard"
+                st.rerun()
 
     render_mini_cart_bar()
 
@@ -2417,96 +2525,99 @@ def product_card(row, key_prefix, query_info=None, compact=False):
     if safe_number(row.get("bank_transfer_price", 0)) > 0:
         tags.append('<span class="nv-tag orange">Havale avantajı</span>')
     if safe_number(row.get("senet_total_price", 0)) > 0:
-        tags.append('<span class="nv-tag">Senetli ödeme</span>')
+        tags.append('<span class="nv-tag purple">Senetli ödeme</span>')
 
-    st.markdown('<div class="nv-product-visual">', unsafe_allow_html=True)
-    image_col, info_col = st.columns([1, 2.65], gap="large")
+    card = st.container(border=True)
+    with card:
+        image_col, info_col = st.columns([1, 2.65], gap="large")
 
-    with image_col:
-        st.markdown('<div class="nv-image-card">', unsafe_allow_html=True)
-        if image_link:
-            try:
-                st.image(image_link, use_container_width=True)
-            except Exception:
-                st.markdown('<div class="nv-no-image">N</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="nv-no-image">N</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        with image_col:
+            img_box = st.container(border=True)
+            with img_box:
+                if image_link:
+                    try:
+                        st.image(image_link, width="stretch")
+                    except Exception:
+                        st.markdown('<div class="nv-image-slot"><div class="nv-no-image">N</div></div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="nv-image-slot"><div class="nv-no-image">N</div></div>', unsafe_allow_html=True)
 
-    with info_col:
-        if clean_str(row.get("package_group", "")):
-            st.markdown(
-                f'<div class="brand-badge">Paket Kategorisi: {html.escape(str(row.get("package_group")))}</div>',
+        with info_col:
+            if clean_str(row.get("package_group", "")):
+                st.markdown(
+                    f'<div class="brand-badge">Paket Kategorisi: {html.escape(str(row.get("package_group")))}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            md_block(
+                f"""
+                <div class="nv-product-top">
+                    <div>
+                        <div class="nv-product-name">{html.escape(product_name)}</div>
+                        <div class="nv-product-meta">{html.escape(category)} · {html.escape(brand)} · Ürün Kodu: {html.escape(str(product_id))}</div>
+                    </div>
+                    <div class="nv-score-chip"><b>%{percent}</b><span>{label}</span></div>
+                </div>
+                <div class="nv-score-bar-wrap">
+                    <div class="nv-score-bar-label"><span>AI Eşleşme Skoru</span><span>%{percent}</span></div>
+                    <div class="nv-score-bar"><div class="nv-score-bar-fill" style="width:{percent}%;"></div></div>
+                </div>
+                <div class="nv-product-price-row">
+                    <div class="nv-product-price">{money(row.get("price", 0))}</div>
+                    <div>{''.join(tags)}</div>
+                </div>
+                <div class="nv-product-desc">{html.escape(clean_str(row.get("description", "Açıklama bulunmuyor.")))}</div>
+                """,
                 unsafe_allow_html=True,
             )
 
-        st.markdown(
-            f"""
-            <div class="nv-product-top">
-                <div>
-                    <div class="nv-product-name">{html.escape(product_name)}</div>
-                    <div class="nv-product-meta">{html.escape(category)} · {html.escape(brand)} · Ürün Kodu: {html.escape(str(product_id))}</div>
-                </div>
-                <div class="nv-score-chip"><b>%{percent}</b><span>{label}</span></div>
-            </div>
-            <div class="nv-product-price-row">
-                <div class="nv-product-price">{money(row.get("price", 0))}</div>
-                <div>{''.join(tags)}</div>
-            </div>
-            <div class="nv-product-desc">{html.escape(clean_str(row.get("description", "Açıklama bulunmuyor.")))}</div>
-            """,
-            unsafe_allow_html=True,
-        )
+            if clean_str(row.get("features", "")):
+                st.caption(row.get("features", ""))
 
-        if clean_str(row.get("features", "")):
-            st.caption(row.get("features", ""))
+            if not compact:
+                tab1, tab2, tab3 = st.tabs(["AI Öneri Nedeni", "Ödeme Modelleri", "Satış Notu"])
+                with tab1:
+                    st.write(row.get("description", "Açıklama bulunmuyor."))
+                    if clean_str(row.get("features", "")):
+                        st.write(row.get("features", ""))
+                with tab2:
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.write(f"**Peşin:** {money(row.get('cash_price', 0))}")
+                        st.write(f"**Havale:** {money(row.get('bank_transfer_price', 0))}")
+                    with c2:
+                        st.write(f"**Kart:** {money(row.get('card_price', 0))}")
+                        st.write(f"**6 Taksit:** {money(row.get('installment_6_total', 0))}")
+                    with c3:
+                        st.write(f"**Senetli Toplam:** {money(row.get('senet_total_price', 0))}")
+                        st.write(f"**Senetli Aylık:** {money(row.get('senet_monthly_9', 0))}")
+                with tab3:
+                    values = get_payment_values(row)
+                    if values["best_option"]:
+                        st.success(f"Toplam tutarda en avantajlı seçenek: {values['best_option'][0]} - {money(values['best_option'][1])}")
+                    if values["senet_total"] > 0:
+                        st.info(f"Aylık düşük ödeme için senetli seçenek anlatılabilir: {money(values['senet_monthly'])}/ay")
 
-        if not compact:
-            tab1, tab2, tab3 = st.tabs(["AI Öneri Nedeni", "Ödeme Modelleri", "Satış Notu"])
-            with tab1:
-                st.write(row.get("description", "Açıklama bulunmuyor."))
-                if clean_str(row.get("features", "")):
-                    st.write(row.get("features", ""))
-            with tab2:
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.write(f"**Peşin:** {money(row.get('cash_price', 0))}")
-                    st.write(f"**Havale:** {money(row.get('bank_transfer_price', 0))}")
-                with c2:
-                    st.write(f"**Kart:** {money(row.get('card_price', 0))}")
-                    st.write(f"**6 Taksit:** {money(row.get('installment_6_total', 0))}")
-                with c3:
-                    st.write(f"**Senetli Toplam:** {money(row.get('senet_total_price', 0))}")
-                    st.write(f"**Senetli Aylık:** {money(row.get('senet_monthly_9', 0))}")
-            with tab3:
-                values = get_payment_values(row)
-                if values["best_option"]:
-                    st.success(f"Toplam tutarda en avantajlı seçenek: {values['best_option'][0]} - {money(values['best_option'][1])}")
-                if values["senet_total"] > 0:
-                    st.info(f"Aylık düşük ödeme için senetli seçenek anlatılabilir: {money(values['senet_monthly'])}/ay")
-
-        b1, b2, b3 = st.columns(3)
-        with b1:
-            if st.button("Sepete Ekle", key=f"cart_{key_prefix}_{product_id}", use_container_width=True):
-                add_product_to_cart(row)
-                st.rerun()
-        with b2:
-            if st.button("Karşılaştır", key=f"comp_{key_prefix}_{product_id}", use_container_width=True):
-                existing_ids = [str(item.get("product_id")) for item in st.session_state.compare_items]
-                if str(product_id) not in existing_ids:
-                    st.session_state.compare_items.append(row.to_dict() if hasattr(row, "to_dict") else dict(row))
-                    st.success("Karşılaştırma listesine eklendi.")
-                else:
-                    st.info("Bu ürün zaten karşılaştırma listesinde.")
-        with b3:
-            if row.get("product_link"):
-                st.link_button("Ürüne Git", row.get("product_link"), use_container_width=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+            b1, b2, b3 = st.columns(3)
+            with b1:
+                if st.button("Sepete Ekle", key=f"cart_{key_prefix}_{product_id}", width="stretch"):
+                    add_product_to_cart(row)
+                    st.rerun()
+            with b2:
+                if st.button("Karşılaştır", key=f"comp_{key_prefix}_{product_id}", width="stretch"):
+                    existing_ids = [str(item.get("product_id")) for item in st.session_state.compare_items]
+                    if str(product_id) not in existing_ids:
+                        st.session_state.compare_items.append(row.to_dict() if hasattr(row, "to_dict") else dict(row))
+                        st.success("Karşılaştırma listesine eklendi.")
+                    else:
+                        st.info("Bu ürün zaten karşılaştırma listesinde.")
+            with b3:
+                if row.get("product_link"):
+                    st.link_button("Ürüne Git", row.get("product_link"), width="stretch")
 
 
 def order_card(order):
-    st.markdown(
+    md_block(
         f"""
         <div class="order-card">
             <div class="status-pill">{order.get("status")}</div>
@@ -2532,151 +2643,171 @@ def order_card(order):
 # PAGES
 # =====================================================
 
-def render_login_page():
-    st.markdown("<br><br>", unsafe_allow_html=True)
+def set_login_credentials(email, password):
+    st.session_state["login_email"] = email
+    st.session_state["login_password"] = password
 
-    left, right = st.columns([1.2, 0.9], gap="large")
+
+def render_login_page():
+    st.write("")
+
+    left, right = st.columns([1.15, 0.95], gap="large")
 
     with left:
-        st.markdown(
+        features = [
+            ("◆", "Karar Motoru", "Ürünü, bütçeyi, stok durumunu ve ödeme alternatiflerini güvenli veri üzerinden seçer; LLM'in fiyat uydurmasını engeller."),
+            ("✦", "Satış Dili AI", "Karar motorunun doğruladığı veriyi müşteri ve mağaza personeli için doğal, ikna edici cevaba dönüştürür."),
+            ("◈", "Operasyon Merkezi", "Sepet, sipariş, kargo, fatura, iade ve mağaza destek süreçlerini tek panelde birleştirir."),
+        ]
+
+        feature_rows_html = "".join(
+            f"""
+            <div class="nv-login-feature-row nv-login-feature-row-{i}">
+                <div class="nv-login-feature-icon">{icon}</div>
+                <div>
+                    <div class="nv-login-feature-title">{escape_html_text(title)}</div>
+                    <div class="nv-login-feature-desc">{escape_html_text(desc)}</div>
+                </div>
+            </div>
             """
-            <div class="brand-badge">NEVADE AI COMMERCE HUB</div>
-            <h1 class="hero-title">
-                E-ticareti<br>
-                <span>LLM + karar motoru</span><br>
-                seviyesine taşı.
-            </h1>
-            <p class="hero-subtitle">
-                Ürün önerisi, çeyiz paketi, senetli ödeme, havale avantajı,
-                mağaza personel desteği, sipariş takibi ve müşteri hizmetleri akışını
-                tek premium panelde birleştiren yapay zeka destekli ticaret asistanı.
-            </p>
+            for i, (icon, title, desc) in enumerate(features)
+        )
+
+        stat_items = [
+            ("✧", "NLP Motoru", "Ultra" if NLP_ENGINE_READY else "Basit", NLP_ENGINE_READY),
+            ("✦", "LLM Katmanı", "Aktif" if LLM_READY else "Fallback", LLM_READY),
+            ("◈", "Guardrail", "Açık" if GUARDRAIL_READY else "Fallback", GUARDRAIL_READY),
+            ("◉", "Görsel Arama", "Açık" if VISION_ENGINE_READY else "Fallback", VISION_ENGINE_READY),
+        ]
+
+        stats_html = "".join(
+            f"""
+            <div class="nv-login-stat">
+                <div class="nv-login-stat-dot {'good' if ready else 'warn'}"></div>
+                <div class="nv-login-stat-icon">{icon}</div>
+                <div class="nv-login-stat-body"><b>{value}</b><span>{label}</span></div>
+            </div>
+            """
+            for icon, label, value, ready in stat_items
+        )
+
+        md_block(
+            f"""
+            <div class="nv-login-hero">
+                <div class="nv-login-hero-top">
+                    <div class="brand-badge" style="background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.30); color:#fff;">
+                        NEVADE AI COMMERCE HUB
+                    </div>
+                    <h1 class="nv-login-hero-heading">
+                        E-ticareti LLM + karar<br>motoru seviyesine taşı.
+                    </h1>
+                    <p class="nv-login-hero-copy">
+                        Ürün önerisi, çeyiz paketi, senetli ödeme, havale avantajı, mağaza personel
+                        desteği, sipariş takibi ve müşteri hizmetleri akışını tek premium panelde
+                        birleştiren yapay zeka destekli ticaret asistanı.
+                    </p>
+                </div>
+                {feature_rows_html}
+                <div class="nv-login-stats">
+                    {stats_html}
+                </div>
+            </div>
             """,
             unsafe_allow_html=True,
         )
 
-        c1, c2, c3 = st.columns(3)
-
-        cards = [
-            (
-                "CORE ENGINE",
-                "Karar Motoru",
-                "Ürünü, bütçeyi, stok durumunu ve ödeme alternatiflerini güvenli veri üzerinden seçer. LLM’in fiyat uydurmasını engeller.",
-            ),
-            (
-                "LLM LAYER",
-                "Satış Dili AI",
-                "Karar motorunun doğruladığı veriyi müşteri ve mağaza personeli için doğal, ikna edici ve profesyonel cevaba dönüştürür.",
-            ),
-            (
-                "OPS HUB",
-                "Operasyon Merkezi",
-                "Sepet, sipariş, kargo, fatura, iade ve mağaza destek süreçlerini tek premium panelde birleştirir.",
-            ),
-        ]
-
-        for col, (badge, title, desc) in zip([c1, c2, c3], cards):
-            with col:
-                st.markdown(
-                    f"""
-                    <div class="module-card">
-                        <div class="brand-badge">{badge}</div>
-                        <h3>{title}</h3>
-                        <p>{desc}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
     with right:
-        with st.container(border=True):
-            st.markdown(
+        login_card = st.container(border=True)
+        with login_card:
+            md_block(
                 """
-                <div style="text-align:center; margin-bottom:22px;">
+                <div class="nv-login-card-head">
                     <div class="brand-badge">GÜVENLİ GİRİŞ</div>
-                    <h2 style="font-size:31px; font-weight:950; color:#0f172a; margin-bottom:8px;">
-                        Nevade Panel
-                    </h2>
-                    <p style="color:#475569; font-size:14px; line-height:1.7;">
-                        Rolünüze göre müşteri, mağaza ve yönetim ekranlarına erişin.
-                    </p>
+                    <div class="nv-login-card-title">Nevade Panel</div>
+                    <div class="nv-login-card-sub">Rolünüzü seçin, bilgiler otomatik doldurulsun; ya da doğrudan kendi bilgilerinizi girin.</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            email = st.text_input("Kullanıcı E-Posta Adresi", value="admin@nevade.com")
-            password = st.text_input("Şifre", value="1234", type="password")
+            rc1, rc2, rc3 = st.columns(3)
+            with rc1:
+                st.button(
+                    "⌂ Yönetici",
+                    key="role_admin",
+                    width="stretch",
+                    on_click=set_login_credentials,
+                    args=("admin@nevade.com", "1234"),
+                )
+            with rc2:
+                st.button(
+                    "◆ Mağaza",
+                    key="role_store",
+                    width="stretch",
+                    on_click=set_login_credentials,
+                    args=("magaza@nevade.com", "1234"),
+                )
+            with rc3:
+                st.button(
+                    "✦ Müşteri",
+                    key="role_customer",
+                    width="stretch",
+                    on_click=set_login_credentials,
+                    args=("musteri@nevade.com", "1234"),
+                )
 
-            if st.button("Sisteme Giriş Yap", use_container_width=True):
+            email = st.text_input("Kullanıcı E-Posta Adresi", key="login_email")
+            password = st.text_input("Şifre", key="login_password", type="password")
+
+            if st.button("Sisteme Giriş Yap →", width="stretch", type="primary"):
                 if email in USERS and USERS[email]["password"] == password:
                     st.session_state.logged_in = True
                     st.session_state.user_email = email
                     st.session_state.user_role = USERS[email]["role"]
-                    st.session_state.current_user = {"email": email, "role": USERS[email]["role"], "name": email.split("@")[0].replace(".", " ").title()}
                     st.session_state.page = "dashboard"
                     st.rerun()
                 else:
                     st.error("Hatalı e-posta adresi veya şifre.")
 
-            st.markdown("---")
-
-            st.markdown(
+            md_block(
                 """
-                <div class="soft-note">
-                    <b>Demo hesaplar</b><br><br>
-                    admin@nevade.com / 1234<br>
-                    magaza@nevade.com / 1234<br>
-                    musteri@nevade.com / 1234
+                <div class="nv-login-fineprint">
+                    Demo hesaplar: admin@nevade.com · magaza@nevade.com · musteri@nevade.com — şifre: 1234
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-    st.write("")
+        st.write("")
 
-    b1, b2, b3, b4 = st.columns(4)
-
-    with b1:
-        st.metric("AI Katmanı", "NLP + LLM", "Güvenli hibrit yapı")
-
-    with b2:
-        st.metric("Sepet Akışı", "Aktif", "Ürün -> Sepet -> Sipariş")
-
-    with b3:
-        st.metric("NLP Durumu", "Ultra" if NLP_ENGINE_READY else "Basit", "Niyet ve varlık analizi")
-
-    with b4:
-        st.metric("LLM Durumu", "Hazır" if LLM_READY else "Fallback", "Doğal cevap motoru")
+        b1, b2, b3, b4 = st.columns(4)
+        with b1:
+            st.metric("AI Katmanı", "NLP + LLM", "Güvenli hibrit yapı")
+        with b2:
+            st.metric("Sepet Akışı", "Aktif", "Ürün → Sepet → Sipariş")
+        with b3:
+            st.metric("NLP Durumu", "Ultra" if NLP_ENGINE_READY else "Basit", "Niyet ve varlık analizi")
+        with b4:
+            st.metric("LLM Durumu", "Hazır" if LLM_READY else "Fallback", "Doğal cevap motoru")
 
 
 def dashboard(products_df):
-    st.markdown('<div class="brand-badge">EXECUTIVE COMMERCE DASHBOARD</div>', unsafe_allow_html=True)
-    st.markdown('<h1 class="hero-title">Nevade AI <span>Yönetim Paneli</span></h1>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="hero-subtitle">Karar motoru güvenli veriyi seçer, LLM bu veriyi satışa ve müşteri deneyimine uygun dile dönüştürür.</p>',
-        unsafe_allow_html=True,
+    stats = [
+        ("Toplam Ürün", len(products_df)),
+        ("Sipariş", len(st.session_state.orders)),
+        ("Sepet Ürün", sum(int(item.get("quantity", 1)) for item in st.session_state.cart)),
+        ("Sepet Toplamı", money(get_cart_total())),
+    ]
+    render_page_head(
+        "EXECUTIVE COMMERCE DASHBOARD",
+        "Nevade AI Yönetim Paneli",
+        "Karar motoru güvenli veriyi seçer, LLM bu veriyi satışa ve müşteri deneyimine uygun dile dönüştürür.",
+        stats=stats,
     )
 
-    a, b, c, d = st.columns(4)
+    st.caption(f"NLP: {'Ultra aktif' if NLP_ENGINE_READY else 'Basit mod'} · LLM: {'Aktif' if LLM_READY else 'Fallback'}")
 
-    with a:
-        st.metric("Toplam Ürün", len(products_df))
-
-    with b:
-        st.metric("Sipariş", len(st.session_state.orders))
-
-    with c:
-        st.metric("Sepet Ürün", sum(int(item.get("quantity", 1)) for item in st.session_state.cart))
-
-    with d:
-        st.metric("Sepet Toplamı", money(get_cart_total()))
-
-    st.caption(f"NLP: {'Ultra aktif' if NLP_ENGINE_READY else 'Basit mod'} | LLM: {'Aktif' if LLM_READY else 'Fallback'}")
-
-    st.write("")
-
-    st.markdown(
+    md_block(
         """
         <div class="luxury-kpi">
             <h3>Nevade AI Commerce Hub — Üst Segment Demo</h3>
@@ -2694,7 +2825,7 @@ def dashboard(products_df):
     left, right = st.columns(2, gap="large")
 
     with left:
-        st.markdown(
+        md_block(
             """
             <div class="premium-card">
                 <h3>LLM Kontrollü Ticaret Akışı</h3>
@@ -2709,7 +2840,7 @@ def dashboard(products_df):
         )
 
     with right:
-        st.markdown("### Canlı Operasyon Özeti")
+        sub_head("Canlı Operasyon Özeti")
 
         if not st.session_state.cart:
             st.info("Sepet şu anda boş.")
@@ -2719,14 +2850,14 @@ def dashboard(products_df):
                 price = safe_number(item.get("price", 0))
                 st.write(f"- **{item.get('product_name')}** x {quantity} - {money(price * quantity)}")
 
-            if st.button("Sepeti Temizle", use_container_width=True):
+            if st.button("Sepeti Temizle", width="stretch"):
                 st.session_state.cart = []
                 st.rerun()
 
-        st.markdown("### Son Sipariş")
+        sub_head("Son Sipariş")
         st.info(order_text(get_last_order()))
 
-        st.markdown("### Kullanıcı Hafızası")
+        sub_head("Kullanıcı Hafızası")
         if MEMORY_ENGINE_READY:
             st.info(memory_summary_text(st.session_state.user_email or "anonymous"))
         else:
@@ -2734,11 +2865,16 @@ def dashboard(products_df):
 
 
 def customer_page(products_df):
-    st.markdown('<div class="brand-badge">CUSTOMER AI EXPERIENCE</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Akıllı Müşteri Asistanı</h2>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="section-desc">Müşteri doğal dilde yazar; sistem ürün, ödeme ve uygunluk kararını üretir.</p>',
-        unsafe_allow_html=True,
+    stats = [
+        ("Sohbet Mesajı", len(st.session_state.customer_messages)),
+        ("Son Sonuç", len(st.session_state.last_results) if isinstance(st.session_state.last_results, pd.DataFrame) else 0),
+        ("Guardrail", "Güvenli" if not (st.session_state.last_guardrail_info or {}).get("blocked") else "Engellendi"),
+    ]
+    render_page_head(
+        "CUSTOMER AI EXPERIENCE",
+        "Akıllı Müşteri Asistanı",
+        "Müşteri doğal dilde yazar; sistem ürün, ödeme ve uygunluk kararını üretir.",
+        stats=stats,
     )
 
     left, right = st.columns([1.45, 2], gap="large")
@@ -2751,25 +2887,34 @@ def customer_page(products_df):
             "customer",
         )
 
+        assist_tip(
+            "✦",
+            "Nasıl daha iyi sonuç alırım?",
+            "Ürün tipi, bütçe ve ödeme tercihinizi (senet / havale / taksit) tek cümlede belirtirseniz karar motoru daha isabetli eşleştirir.",
+        )
+
         with st.form("customer_form", clear_on_submit=True):
             question = st.text_input(
                 "Müşteri Talebi",
                 placeholder="Örn: 50000 TL çeyiz paketi istiyorum, senetli olsun",
             )
-            submitted = st.form_submit_button("Gönder", use_container_width=True)
+            submitted = st.form_submit_button("Gönder", width="stretch", type="primary")
 
         if submitted and question.strip():
-            st.session_state.customer_messages.append({"role": "user", "text": question})
+            now_label = datetime.now().strftime("%H:%M")
+            st.session_state.customer_messages.append({"role": "user", "text": question, "time": now_label})
 
             with st.spinner("Ultra NLP, karar motoru ve LLM birlikte çalışıyor..."):
                 results, query_info, answer = recommend_products_with_new_ai(products_df, question)
                 st.session_state.last_results = results
                 st.session_state.last_query_info = query_info
-                st.session_state.customer_messages.append({"role": "assistant", "text": answer})
+                st.session_state.customer_messages.append(
+                    {"role": "assistant", "text": answer, "time": datetime.now().strftime("%H:%M")}
+                )
 
             st.rerun()
 
-        st.markdown("### Hızlı Yanıtlar")
+        sub_head("Hızlı Yanıtlar")
 
         quick_columns = st.columns(4)
 
@@ -2782,21 +2927,24 @@ def customer_page(products_df):
 
         for index, (label, quick_query) in enumerate(actions):
             with quick_columns[index]:
-                if st.button(label, key=f"quick_{index}", use_container_width=True):
+                if st.button(label, key=f"quick_{index}", width="stretch"):
                     if quick_query == "GO_CART":
                         go_page("cart_checkout")
 
-                    st.session_state.customer_messages.append({"role": "user", "text": quick_query})
+                    now_label = datetime.now().strftime("%H:%M")
+                    st.session_state.customer_messages.append({"role": "user", "text": quick_query, "time": now_label})
                     results, query_info, answer = recommend_products_with_new_ai(products_df, quick_query)
                     st.session_state.last_results = results
                     st.session_state.last_query_info = query_info
-                    st.session_state.customer_messages.append({"role": "assistant", "text": answer})
+                    st.session_state.customer_messages.append(
+                        {"role": "assistant", "text": answer, "time": datetime.now().strftime("%H:%M")}
+                    )
                     st.rerun()
 
         c1, c2 = st.columns(2)
 
         with c1:
-            if st.button("Sohbeti Sıfırla", use_container_width=True):
+            if st.button("Sohbeti Sıfırla", width="stretch"):
                 st.session_state.customer_messages = []
                 st.session_state.customer_context = create_empty_customer_context()
                 st.session_state.last_results = pd.DataFrame()
@@ -2807,34 +2955,34 @@ def customer_page(products_df):
                 st.rerun()
 
         with c2:
-            if st.button("Sepete Git", use_container_width=True):
+            if st.button("Sepete Git", width="stretch"):
                 go_page("cart_checkout")
 
     with right:
-        st.markdown("### AI Eşleşen Ürünler")
+        sub_head("AI Eşleşen Ürünler")
 
         if st.session_state.last_query_info:
             with st.expander("Algılanan Müşteri İsteği", expanded=False):
                 st.json(st.session_state.last_query_info)
 
                 if st.session_state.last_guardrail_info:
-                    st.markdown("#### Guardrail")
+                    st.markdown("**Guardrail**")
                     st.json(st.session_state.last_guardrail_info)
 
                 if st.session_state.last_memory_info:
-                    st.markdown("#### Memory")
+                    st.markdown("**Memory**")
                     st.json(st.session_state.last_memory_info)
 
                 if st.session_state.last_filter_info:
-                    st.markdown("#### Strict Filter")
+                    st.markdown("**Strict Filter**")
                     st.json(st.session_state.last_filter_info)
 
                 if st.session_state.last_semantic_info:
-                    st.markdown("#### Semantic Search")
+                    st.markdown("**Semantic Search**")
                     st.json(st.session_state.last_semantic_info)
 
                 if st.session_state.last_package_summary:
-                    st.markdown("#### Package Summary")
+                    st.markdown("**Package Summary**")
                     st.json(st.session_state.last_package_summary)
 
                 st.markdown(
@@ -2852,11 +3000,16 @@ def customer_page(products_df):
 
 
 def store_page(products_df):
-    st.markdown('<div class="brand-badge">STORE AI SALES COPILOT</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Mağaza Personel Asistanı</h2>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="section-desc">Karar motoru doğru veriyi bulur, LLM bunu personele hazır satış cevabı olarak sunar.</p>',
-        unsafe_allow_html=True,
+    stats = [
+        ("Mağaza Sorgusu", len(st.session_state.store_messages)),
+        ("Aktif Sipariş", len(st.session_state.orders)),
+        ("Guardrail", "Güvenli" if not (st.session_state.last_guardrail_info or {}).get("blocked") else "Engellendi"),
+    ]
+    render_page_head(
+        "STORE AI SALES COPILOT",
+        "Mağaza Personel Asistanı",
+        "Karar motoru doğru veriyi bulur, LLM bunu personele hazır satış cevabı olarak sunar.",
+        stats=stats,
     )
 
     left, right = st.columns([1.45, 2], gap="large")
@@ -2869,36 +3022,44 @@ def store_page(products_df):
             "store",
         )
 
+        assist_tip(
+            "◆",
+            "Personel için ipucu",
+            "Sipariş numarası (NVD-...) yazarsanız doğrudan sipariş kartını getirir; ürün + ödeme türü yazarsanız en avantajlı seçeneği önerir.",
+        )
+
         with st.form("store_form", clear_on_submit=True):
             question = st.text_input(
                 "Personel Sorusu",
                 placeholder="Örn: Beko buzdolabı senetle olur mu, en avantajlı ödeme ne?",
             )
-            submitted = st.form_submit_button("Sorgula", use_container_width=True)
+            submitted = st.form_submit_button("Sorgula", width="stretch", type="primary")
 
         if submitted and question.strip():
-            st.session_state.store_messages.append({"role": "store", "text": question})
+            now_label = datetime.now().strftime("%H:%M")
+            st.session_state.store_messages.append({"role": "store", "text": question, "time": now_label})
 
             with st.spinner("Ultra NLP veriyi analiz ediyor, karar motoru ürünü seçiyor, LLM cevabı hazırlıyor..."):
                 answer = store_product_answer(products_df, question)
-                st.session_state.store_messages.append({"role": "assistant", "text": answer})
+                st.session_state.store_messages.append(
+                    {"role": "assistant", "text": answer, "time": datetime.now().strftime("%H:%M")}
+                )
 
             st.rerun()
 
-        if st.button("Mağaza Sohbetini Temizle", use_container_width=True):
+        if st.button("Mağaza Sohbetini Temizle", width="stretch"):
             st.session_state.store_messages = []
             st.rerun()
 
     with right:
-        st.markdown("### Son Siparişler ve Operasyon Durumu")
+        sub_head("Son Siparişler ve Operasyon Durumu")
 
         for order in st.session_state.orders[-5:][::-1]:
             order_card(order)
 
 
 def cart_page():
-    st.markdown('<div class="brand-badge">CART TO ORDER FLOW</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Sepet ve Sipariş Oluşturma</h2>', unsafe_allow_html=True)
+    render_page_head("CART TO ORDER FLOW", "Sepet ve Sipariş Oluşturma")
 
     a, b, c = st.columns(3)
 
@@ -2915,7 +3076,7 @@ def cart_page():
         st.info("Sepet boş. Ürün kartlarından sepete ürün ekleyebilirsiniz.")
         return
 
-    st.markdown("### Sepetteki Ürünler")
+    sub_head("Sepetteki Ürünler")
 
     for index, item in enumerate(st.session_state.cart):
         with st.container(border=True):
@@ -2934,11 +3095,11 @@ def cart_page():
                 st.metric("Toplam", money(price * quantity))
 
             with c4:
-                if st.button("Kaldır", key=f"remove_{index}", use_container_width=True):
+                if st.button("Kaldır", key=f"remove_{index}", width="stretch"):
                     st.session_state.cart.pop(index)
                     st.rerun()
 
-    st.markdown("### Sipariş Bilgileri")
+    sub_head("Sipariş Bilgileri")
 
     with st.form("checkout_form"):
         customer_name = st.text_input("Müşteri Adı", value="Demo Müşteri")
@@ -2955,7 +3116,7 @@ def cart_page():
                 ["Online Mağaza", "Merter Mağazası", "Bakırköy Mağazası", "Çağrı Merkezi"],
             )
 
-        submitted = st.form_submit_button("Siparişi Tamamla", use_container_width=True)
+        submitted = st.form_submit_button("Siparişi Tamamla", width="stretch", type="primary")
 
     if submitted:
         order = create_order_from_cart(customer_name, address, payment_type, store_name)
@@ -2967,11 +3128,16 @@ def cart_page():
 
 
 def orders_page():
-    st.markdown('<div class="brand-badge">ORDER MANAGEMENT</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Sipariş Yönetimi</h2>', unsafe_allow_html=True)
+    active_count = sum(1 for o in st.session_state.orders if o.get("status") != "Kargoda")
+    stats = [
+        ("Toplam Sipariş", len(st.session_state.orders)),
+        ("Aktif İşlemde", active_count),
+        ("Son Sipariş", get_last_order().get("order_id", "-") if get_last_order() else "-"),
+    ]
+    render_page_head("ORDER MANAGEMENT", "Sipariş Yönetimi", stats=stats)
 
     if st.session_state.support_result:
-        st.markdown(
+        md_block(
             f"""
             <div class="success-hero">
                 <b>{st.session_state.support_result.get("action")}</b><br><br>
@@ -2980,14 +3146,14 @@ def orders_page():
             """,
             unsafe_allow_html=True,
         )
+        st.write("")
 
     for order in st.session_state.orders[::-1]:
         order_card(order)
 
 
 def quick_page():
-    st.markdown('<div class="brand-badge">SERVICE OPERATIONS</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Hızlı İşlemler</h2>', unsafe_allow_html=True)
+    render_page_head("SERVICE OPERATIONS", "Hızlı İşlemler")
 
     left, right = st.columns([1, 1.4], gap="large")
 
@@ -3003,7 +3169,7 @@ def quick_page():
         action = st.selectbox("İşlem", categories[category])
         query = st.text_input("Sipariş No / Takip No / Müşteri Adı", placeholder="Örn: NVD-1003")
 
-        if st.button("İşlemi Çalıştır", use_container_width=True):
+        if st.button("İşlemi Çalıştır", width="stretch", type="primary"):
             order = find_order(query) if query else get_last_order()
 
             if "Sipariş" in category:
@@ -3032,10 +3198,10 @@ def quick_page():
             st.rerun()
 
     with right:
-        st.markdown("### İşlem Sonucu")
+        sub_head("İşlem Sonucu")
 
         if st.session_state.support_result:
-            st.markdown(
+            md_block(
                 f"""
                 <div class="quick-result-box">
                     <strong>{st.session_state.support_result.get("action")}</strong><br><br>
@@ -3047,21 +3213,20 @@ def quick_page():
         else:
             st.info("Bir işlem seçip çalıştırdığınızda sonuç burada görünecek.")
 
-        st.markdown("### Son Siparişler")
+        sub_head("Son Siparişler")
 
         for order in st.session_state.orders[-3:][::-1]:
             order_card(order)
 
 
 def compare_page():
-    st.markdown('<div class="brand-badge">COMPARISON MATRIX</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Ürün Karşılaştırma</h2>', unsafe_allow_html=True)
+    render_page_head("COMPARISON MATRIX", "Ürün Karşılaştırma")
 
     if not st.session_state.compare_items:
-        st.info("Karşılaştırma listeniz boş.")
+        st.info("Karşılaştırma listeniz boş. Katalog veya AI sonuçlarından 'Karşılaştır' butonuyla ürün ekleyin.")
         return
 
-    if st.button("Listeyi Boşalt", use_container_width=True):
+    if st.button("Listeyi Boşalt", width="stretch"):
         st.session_state.compare_items = []
         st.rerun()
 
@@ -3084,27 +3249,46 @@ def compare_page():
 
     visual_dataframe(compare_df[visible_cols], title="Karşılaştırma Matrisi", subtitle="Seçili ürünlerin fiyat, marka ve stok karşılaştırması")
 
+    sub_head("Ürün Kartları")
+
     for index, row in compare_df.iterrows():
         product_card(row, f"compare_{index}", compact=True)
 
 
 def products_page(products_df):
-    st.markdown('<div class="brand-badge">PRODUCT CATALOG</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Ürün Kataloğu</h2>', unsafe_allow_html=True)
+    in_stock = int((products_df["stock_status"].apply(normalize_text) == "stokta").sum()) if "stock_status" in products_df.columns else 0
+    avg_price = money(products_df["price"].mean()) if "price" in products_df.columns and not products_df.empty else money(0)
+    stats = [
+        ("Toplam Ürün", len(products_df)),
+        ("Stokta", in_stock),
+        ("Ortalama Fiyat", avg_price),
+    ]
+    render_page_head("PRODUCT CATALOG", "Ürün Kataloğu", stats=stats)
 
     with st.expander("Yeni Ürün Ekleme Paneli", expanded=False):
         with st.form("add_product_form"):
-            product_id = st.text_input("Ürün Kodu", placeholder="P007")
-            product_name = st.text_input("Ürün İsmi")
-            category = st.selectbox("Kategori", ["Beyaz Eşya", "Televizyon", "Küçük Ev Aleti", "Cep Telefonu", "Bilgisayar"])
-            brand = st.text_input("Marka")
-            price = st.number_input("Liste Fiyatı", min_value=0, value=10000)
-            stock = st.selectbox("Stok Durumu", ["Stokta", "Tükendi", "Sınırlı Stok"])
+            sub_head("Temel Bilgiler")
+            c1, c2 = st.columns(2)
+            with c1:
+                product_id = st.text_input("Ürün Kodu", placeholder="P007")
+                category = st.selectbox("Kategori", ["Beyaz Eşya", "Televizyon", "Küçük Ev Aleti", "Cep Telefonu", "Bilgisayar"])
+            with c2:
+                product_name = st.text_input("Ürün İsmi")
+                brand = st.text_input("Marka")
+
+            sub_head("Fiyat ve Stok")
+            c3, c4 = st.columns(2)
+            with c3:
+                price = st.number_input("Liste Fiyatı", min_value=0, value=10000)
+            with c4:
+                stock = st.selectbox("Stok Durumu", ["Stokta", "Tükendi", "Sınırlı Stok"])
+
+            sub_head("Açıklama")
             description = st.text_area("Açıklama")
             use_case = st.text_input("Kullanım Amacı", value="Ev, günlük kullanım")
             features = st.text_input("Özellikler", value="Demo özellik")
 
-            submitted = st.form_submit_button("Ürünü Kaydet", use_container_width=True)
+            submitted = st.form_submit_button("Ürünü Kaydet", width="stretch", type="primary")
 
             if submitted and product_id and product_name:
                 new_row = {
@@ -3155,21 +3339,20 @@ def products_page(products_df):
 
 
 def memory_page():
-    st.markdown('<div class="brand-badge">CUSTOMER MEMORY</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Kullanıcı Hafızası ve Davranış Logları</h2>', unsafe_allow_html=True)
+    render_page_head("CUSTOMER MEMORY", "Kullanıcı Hafızası ve Davranış Logları")
 
     user_id = st.session_state.user_email or "anonymous"
 
-    st.markdown("### Hafıza Özeti")
+    sub_head("Hafıza Özeti")
     st.info(memory_summary_text(user_id))
 
-    st.markdown("### Ham Kullanıcı Hafızası")
+    sub_head("Ham Kullanıcı Hafızası")
     try:
         st.json(get_user_memory(user_id))
     except Exception as e:
         st.warning(f"Hafıza okunamadı: {e}")
 
-    st.markdown("### Son Davranış Logları")
+    sub_head("Son Davranış Logları")
     logs = load_behavior_log(limit=100)
 
     if logs is None or logs.empty:
@@ -3181,11 +3364,10 @@ def memory_page():
 
 
 def metrics_page():
-    st.markdown('<div class="brand-badge">AI PERFORMANCE METRICS</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">AI Performans ve Kullanım Metrikleri</h2>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="section-desc">Sistem kullanımını, müşteri ilgisini, ödeme tercihlerini ve güvenlik olaylarını ölçer.</p>',
-        unsafe_allow_html=True,
+    render_page_head(
+        "AI PERFORMANCE METRICS",
+        "AI Performans ve Kullanım Metrikleri",
+        "Sistem kullanımını, müşteri ilgisini, ödeme tercihlerini ve güvenlik olaylarını ölçer.",
     )
 
     if not METRICS_ENGINE_READY:
@@ -3221,12 +3403,12 @@ def metrics_page():
     with h:
         st.metric("Son Güncelleme", metrics.get("last_updated", "-"))
 
-    st.markdown("---")
+    st.markdown('<div class="nv-section-divider"></div>', unsafe_allow_html=True)
 
     left, right = st.columns(2, gap="large")
 
     with left:
-        st.markdown("### En Çok Sorulan Ürün Tipleri")
+        sub_head("En Çok Sorulan Ürün Tipleri")
         product_report = get_product_interest_report()
 
         if product_report is None or product_report.empty:
@@ -3234,7 +3416,7 @@ def metrics_page():
         else:
             visual_dataframe(product_report, title="Ürün Tipi İlgisi", subtitle="Müşterilerin en çok sorduğu ürün kategorileri")
 
-        st.markdown("### Ödeme Tercihleri")
+        sub_head("Ödeme Tercihleri")
         payment_report = get_payment_interest_report()
 
         if payment_report is None or payment_report.empty:
@@ -3243,7 +3425,7 @@ def metrics_page():
             visual_dataframe(payment_report, title="Ödeme Tercihleri", subtitle="Senet, kart, havale ve taksit ilgi dağılımı")
 
     with right:
-        st.markdown("### En Çok Önerilen Ürünler")
+        sub_head("En Çok Önerilen Ürünler")
         top_product_report = get_top_product_report()
 
         if top_product_report is None or top_product_report.empty:
@@ -3251,7 +3433,7 @@ def metrics_page():
         else:
             visual_dataframe(top_product_report, title="En Çok Önerilen Ürünler", subtitle="AI karar motorunun öne çıkardığı ürünler")
 
-        st.markdown("### Guardrail Kategorileri")
+        sub_head("Guardrail Kategorileri")
         guardrail_report = get_guardrail_report()
 
         if guardrail_report is None or guardrail_report.empty:
@@ -3259,7 +3441,7 @@ def metrics_page():
         else:
             visual_dataframe(guardrail_report, title="Guardrail Kategorileri", subtitle="Güvenlik ve politika filtreleme olayları")
 
-    st.markdown("### Son AI Aktivitesi")
+    sub_head("Son AI Aktivitesi")
     recent = get_recent_activity(limit=100)
 
     if recent is None or recent.empty:
@@ -3270,11 +3452,10 @@ def metrics_page():
 
 
 def vision_page(products_df):
-    st.markdown('<div class="brand-badge">VISUAL PRODUCT SEARCH</div>', unsafe_allow_html=True)
-    st.markdown('<h2 class="section-head">Görsel ile Ürün Bulma</h2>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="section-desc">Müşteri ürün görseli yükler; sistem Gemini Vision + manuel ürün tipi + semantic search ile en yakın katalog ürünlerini bulur.</p>',
-        unsafe_allow_html=True,
+    render_page_head(
+        "VISUAL PRODUCT SEARCH",
+        "Görsel ile Ürün Bulma",
+        "Müşteri ürün görseli yükler; sistem Gemini Vision + manuel ürün tipi + semantic search ile en yakın katalog ürünlerini bulur.",
     )
 
     left, right = st.columns([1, 1.5], gap="large")
@@ -3309,7 +3490,7 @@ def vision_page(products_df):
         )
 
         if uploaded_file is not None:
-            st.image(uploaded_file, caption=uploaded_file.name, use_container_width=True)
+            st.image(uploaded_file, caption=uploaded_file.name, width="stretch")
             st.session_state.last_uploaded_image_name = uploaded_file.name
 
         type_to_query = {
@@ -3331,20 +3512,20 @@ def vision_page(products_df):
             value=True,
         )
 
-        st.markdown("### Hızlı görsel arama testleri")
+        sub_head("Hızlı Görsel Arama Testleri")
         t1, t2 = st.columns(2)
 
         with t1:
-            if st.button("Mini buzdolabı örneği", use_container_width=True):
+            if st.button("Mini buzdolabı örneği", width="stretch"):
                 description = "Balkonda içecek saklamak için küçük buzdolabı gibi bir şey arıyorum"
                 visual_type_label = "Mini buzdolabı / içecek soğutucu"
 
         with t2:
-            if st.button("Laptop örneği", use_container_width=True):
+            if st.button("Laptop örneği", width="stretch"):
                 description = "Öğrenci için ders ve sunum yapmalık bilgisayar"
                 visual_type_label = "Laptop / bilgisayar"
 
-        if st.button("Görselden Ürün Ara", use_container_width=True):
+        if st.button("Görselden Ürün Ara", width="stretch", type="primary"):
             filename = uploaded_file.name if uploaded_file is not None else ""
             image_bytes = uploaded_file.getvalue() if uploaded_file is not None and use_gemini_vision else None
             manual_type_text = type_to_query.get(visual_type_label, "")
@@ -3392,12 +3573,14 @@ def vision_page(products_df):
                         {
                             "role": "user",
                             "text": f"Görsel arama: {generated_query}",
+                            "time": datetime.now().strftime("%H:%M"),
                         }
                     )
                     st.session_state.customer_messages.append(
                         {
                             "role": "assistant",
                             "text": answer,
+                            "time": datetime.now().strftime("%H:%M"),
                         }
                     )
 
@@ -3407,7 +3590,7 @@ def vision_page(products_df):
             st.rerun()
 
     with right:
-        st.markdown("### Görsel Arama Sonucu")
+        sub_head("Görsel Arama Sonucu")
 
         if st.session_state.last_vision_info:
             with st.expander("Vision Info", expanded=False):

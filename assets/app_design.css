@@ -459,6 +459,7 @@ html, body, [class*="css"]{
   min-height:188px;display:flex;align-items:center;justify-content:center;
   border:1px solid rgba(20,92,224,.12);
 }
+.nv-image-slot{ display:flex; align-items:center; justify-content:center; min-height:180px; }
 .nv-no-image{
   width:112px;height:112px;border-radius:34px;
   background: var(--nv-aurora); color:#fff;display:flex;align-items:center;justify-content:center;
@@ -566,13 +567,156 @@ html, body, [class*="css"]{
   background: var(--nv-glass) !important;
 }
 div[data-testid="stVerticalBlockBorderWrapper"]{
-  border-radius:22px !important;
+  position:relative;
+  overflow:hidden;
+  border-radius:24px !important;
   border:1px solid rgba(20,92,224,.13) !important;
   background: var(--nv-glass) !important;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: var(--nv-shadow-soft);
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:before{
+  content:"";
+  position:absolute; inset:0 0 auto 0; height:4px;
+  background: var(--nv-aurora); background-size:220% 100%;
+  animation: nvAuroraFlow 9s linear infinite;
+  z-index:2;
 }
 
 img{ border-radius:20px; }
+
+/* ---------- LOGIN PREMIUM ---------- */
+.nv-login-hero{
+  position:relative;overflow:hidden;
+  border-radius:34px;padding:40px 38px;
+  background: var(--nv-aurora-soft); background-size:180% 180%;
+  animation: nvAuroraFlow 18s ease-in-out infinite alternate;
+  color:#fff; min-height:580px;
+  box-shadow: var(--nv-shadow);
+  border:1px solid rgba(255,255,255,.30);
+  display:flex; flex-direction:column; justify-content:space-between;
+}
+.nv-login-hero:before{
+  content:"";position:absolute;inset:0;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size:44px 44px;opacity:.25;pointer-events:none;
+}
+.nv-login-hero-top{ position:relative; z-index:1; }
+.nv-login-hero-heading{
+  font-size:35px;line-height:1.1;font-weight:950;letter-spacing:-1.1px;
+  margin:12px 0 10px; color:#fff;
+}
+.nv-login-hero-copy{ font-size:14.5px;line-height:1.7;color:rgba(255,255,255,.85);max-width:480px; }
+.nv-login-feature-row{
+  position:relative; z-index:1;
+  display:flex; align-items:flex-start; gap:14px;
+  padding:13px 0; border-bottom:1px solid rgba(255,255,255,.14);
+}
+.nv-login-feature-row:last-of-type{ border-bottom:none; }
+.nv-login-feature-icon{
+  width:42px;height:42px;min-width:42px;border-radius:14px;
+  background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.24);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:950;
+}
+.nv-login-feature-row-0 .nv-login-feature-icon{ background:rgba(46,134,255,.30); border-color:rgba(46,134,255,.40); }
+.nv-login-feature-row-1 .nv-login-feature-icon{ background:rgba(168,85,247,.30); border-color:rgba(168,85,247,.40); }
+.nv-login-feature-row-2 .nv-login-feature-icon{ background:rgba(255,122,30,.30); border-color:rgba(255,122,30,.40); }
+.nv-login-feature-title{ font-size:14.5px; font-weight:900; margin-bottom:3px; }
+.nv-login-feature-desc{ font-size:12.5px; color:rgba(255,255,255,.78); line-height:1.55; }
+.nv-login-stats{ display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; position:relative; z-index:1; }
+.nv-login-stat{
+  position:relative;
+  flex:1; min-width:150px;
+  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22);
+  border-radius:18px; padding:13px 14px;
+  display:flex; align-items:center; gap:12px;
+  transition: transform .18s ease, background .18s ease;
+}
+.nv-login-stat:hover{ background:rgba(255,255,255,.22); transform:translateY(-2px); }
+.nv-login-stat-icon{
+  width:38px;height:38px;min-width:38px;border-radius:12px;
+  background:rgba(255,255,255,.20); border:1px solid rgba(255,255,255,.26);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px; font-weight:950; color:#fff;
+}
+.nv-login-stat-body{ min-width:0; }
+.nv-login-stat b{ display:block; font-size:19px; font-weight:950; line-height:1.15; }
+.nv-login-stat span{ font-size:10px; color:rgba(255,255,255,.78); text-transform:uppercase; letter-spacing:.06em; font-weight:800; }
+.nv-login-stat-dot{ position:absolute; top:10px; right:10px; width:8px; height:8px; border-radius:99px; }
+.nv-login-stat-dot.good{ background:#29E47D; box-shadow:0 0 0 4px rgba(41,228,125,.20); }
+.nv-login-stat-dot.warn{ background:#FFB020; box-shadow:0 0 0 4px rgba(255,176,32,.20); }
+
+.nv-login-card-shell{
+  position:relative;
+  background: var(--nv-glass-strong);
+  border:1px solid rgba(255,255,255,.70);
+  border-radius:32px; padding:30px 28px;
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  box-shadow: var(--nv-shadow);
+  overflow:hidden;
+}
+.nv-login-card-shell:before{
+  content:"";position:absolute;inset:0 0 auto 0;height:4px;
+  background: var(--nv-aurora); background-size:220% 100%;
+  animation: nvAuroraFlow 8s linear infinite;
+}
+.nv-login-card-head{ text-align:center; margin-bottom:18px; }
+.nv-login-card-title{ font-size:27px; font-weight:950; color:var(--nv-ink); margin:10px 0 6px; letter-spacing:-.6px; }
+.nv-login-card-sub{ color:var(--nv-muted); font-size:13.5px; line-height:1.65; }
+.nv-role-row{ display:flex; gap:8px; margin-bottom:14px; }
+.nv-role-row .stButton>button{ min-height:42px !important; font-size:12.5px !important; }
+.nv-login-fineprint{
+  font-size:11.5px; color:var(--nv-muted); text-align:center; margin-top:14px; line-height:1.6;
+}
+
+/* ---------- SAYFA BAŞLIKLARI / DIVIDER ---------- */
+.nv-section-divider{
+  height:1px; margin:8px 0 22px;
+  background: linear-gradient(90deg, rgba(20,92,224,.20), rgba(123,47,247,.20), rgba(255,61,138,.20), transparent);
+}
+.nv-stat-strip{ display:flex; gap:14px; flex-wrap:wrap; margin:14px 0 4px; }
+.nv-stat-chip{
+  position:relative; overflow:hidden;
+  flex:1; min-width:160px;
+  background: var(--nv-glass); border:1px solid rgba(20,92,224,.12);
+  border-radius:20px; padding:16px 18px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--nv-shadow-soft);
+}
+.nv-stat-chip b{ display:block; font-size:25px; font-weight:950; color:var(--nv-blue); letter-spacing:-.6px; }
+.nv-stat-chip span{ font-size:11px; color:var(--nv-muted); font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+
+.nv-subhead{
+  font-size:12.5px; font-weight:950; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--nv-purple); margin:20px 0 10px; display:flex; align-items:center; gap:8px;
+}
+.nv-subhead:before{ content:""; width:16px; height:2px; border-radius:2px; background:var(--nv-aurora); }
+
+/* ---------- ASSISTANT YARDIM KUTUSU ---------- */
+.nv-assist-tip{
+  display:flex; gap:12px; align-items:flex-start;
+  background: var(--nv-glass); border:1px solid rgba(123,47,247,.14);
+  border-radius:20px; padding:14px 16px; margin:14px 0;
+  backdrop-filter: blur(12px);
+}
+.nv-assist-tip-icon{
+  width:34px;height:34px;min-width:34px;border-radius:11px;
+  background: var(--nv-aurora); color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:950;font-size:15px;
+}
+.nv-assist-tip-text b{ color:var(--nv-ink); display:block; font-size:13px; margin-bottom:2px; }
+.nv-assist-tip-text span{ color:var(--nv-muted); font-size:12.5px; line-height:1.55; }
+
+/* ---------- ÜRÜN SKOR ÇUBUĞU ---------- */
+.nv-score-bar-wrap{ margin:10px 0 4px; }
+.nv-score-bar-label{ display:flex; justify-content:space-between; font-size:10.5px; font-weight:900; color:var(--nv-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
+.nv-score-bar{ width:100%; height:6px; border-radius:999px; background:rgba(20,92,224,.10); overflow:hidden; }
+.nv-score-bar-fill{ height:100%; border-radius:999px; background:var(--nv-aurora); background-size:220% 100%; animation:nvAuroraFlow 6s linear infinite; }
 
 /* ---------- RESPONSIVE ---------- */
 @media(max-width:1180px){
@@ -593,6 +737,9 @@ img{ border-radius:20px; }
   .nv-metric-grid{grid-template-columns:1fr}
   .nv-table-banner{flex-direction:column;align-items:flex-start}
   .nv-product-top,.nv-product-price-row{flex-direction:column;align-items:flex-start}
+  .nv-login-hero{min-height:auto;padding:26px}
+  .nv-login-hero-heading{font-size:27px}
+  .nv-stat-strip{flex-direction:column}
 }
 
 @media (prefers-reduced-motion: reduce){

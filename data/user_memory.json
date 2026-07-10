@@ -29,72 +29,188 @@
   },
   "admin@nevade.com": {
     "created_at": "2026-07-08 10:36:20",
-    "updated_at": "2026-07-09 16:39:39",
-    "query_count": 32,
+    "updated_at": "2026-07-10 15:20:49",
+    "query_count": 43,
     "last_queries": [
       {
-        "timestamp": "2026-07-09 15:17:44",
-        "query": "  “Öğrenci için 25000 TL laptop var mı senetli olsun”"
+        "timestamp": "2026-07-10 09:51:00",
+        "query": "500000 tl çeyiz paketi istiyorum"
       },
       {
-        "timestamp": "2026-07-09 15:17:57",
-        "query": "“Daha ucuzu var mı?”"
+        "timestamp": "2026-07-10 09:54:55",
+        "query": "buzdolabi"
       },
       {
-        "timestamp": "2026-07-09 15:18:21",
-        "query": "“100 bin TL çeyiz paketi yap”"
+        "timestamp": "2026-07-10 09:55:03",
+        "query": "televizyon"
       },
       {
-        "timestamp": "2026-07-09 15:18:51",
+        "timestamp": "2026-07-10 14:03:02",
+        "query": "50000 tl altı çeyiz paketi yap"
+      },
+      {
+        "timestamp": "2026-07-10 14:03:51",
+        "query": "Bulaşık Makinesi öner"
+      },
+      {
+        "timestamp": "2026-07-10 14:09:11",
+        "query": "camasir makinesi camasir makinesi 7 kg oner"
+      },
+      {
+        "timestamp": "2026-07-10 14:14:13",
+        "query": "televizyon buzdolabi sogutucu ekran goruntusu 2026 07 08 113543 png"
+      },
+      {
+        "timestamp": "2026-07-10 15:16:00",
+        "query": "50000 tl altı buzdolabı öner"
+      },
+      {
+        "timestamp": "2026-07-10 15:16:38",
+        "query": "beko buzdolabı senetle ürün öner"
+      },
+      {
+        "timestamp": "2026-07-10 15:20:49",
         "query": "buzdolabi televizyon buzdolabi ekran goruntusu 2026 07 08 113543 png"
-      },
-      {
-        "timestamp": "2026-07-09 15:19:51",
-        "query": "Bugün hangi ürünleri önermeliyim?"
-      },
-      {
-        "timestamp": "2026-07-09 15:20:14",
-        "query": "Buzdolabı stokta var mı?"
-      },
-      {
-        "timestamp": "2026-07-09 16:23:11",
-        "query": "50000 tl çeyiz paketi öner"
-      },
-      {
-        "timestamp": "2026-07-09 16:28:56",
-        "query": "50000 tl çeyiz"
-      },
-      {
-        "timestamp": "2026-07-09 16:35:04",
-        "query": "50000 tl çeyiz paketi yap"
-      },
-      {
-        "timestamp": "2026-07-09 16:39:39",
-        "query": "50000 TL çeyiz seti öner"
       }
     ],
     "preferred_product_types": {
       "laptop": 5,
-      "buzdolabi": 9,
-      "televizyon": 13
+      "buzdolabi": 14,
+      "televizyon": 16,
+      "camasir_makinesi": 2,
+      "bulasik_makinesi": 1
     },
     "preferred_brands": {
       "xiaomi": 11,
-      "beko": 1
+      "beko": 2
     },
     "preferred_payment": {
-      "lowest_monthly": 10,
+      "lowest_monthly": 11,
       "lowest_total": 1
     },
-    "last_budget": 50000,
+    "last_budget": 8113,
     "last_product_type": "buzdolabi",
-    "last_brand": "xiaomi",
-    "last_intent": "product_search",
+    "last_brand": "beko",
+    "last_intent": "general_question",
     "last_use_cases": [
       "ceyiz"
     ],
     "top_product_type": "televizyon",
     "top_brand": "xiaomi",
+    "top_payment": "lowest_monthly"
+  },
+  "magaza@nevade.com": {
+    "created_at": "2026-07-10 09:06:55",
+    "updated_at": "2026-07-10 14:22:31",
+    "query_count": 4,
+    "last_queries": [
+      {
+        "timestamp": "2026-07-10 11:54:13",
+        "query": "bana 10000 bilgisayar öner"
+      },
+      {
+        "timestamp": "2026-07-10 14:20:45",
+        "query": "beko buzdolabı senetle olur mu"
+      },
+      {
+        "timestamp": "2026-07-10 14:21:46",
+        "query": "beko buzdolabı senetle olur mu?"
+      },
+      {
+        "timestamp": "2026-07-10 14:22:31",
+        "query": "siemens buzdolabı"
+      }
+    ],
+    "preferred_product_types": {
+      "laptop": 1,
+      "buzdolabi": 3
+    },
+    "preferred_brands": {
+      "lg": 1,
+      "beko": 2
+    },
+    "preferred_payment": {
+      "lowest_monthly": 2
+    },
+    "last_budget": 10000,
+    "last_product_type": "buzdolabi",
+    "last_brand": "beko",
+    "last_intent": "general_question",
+    "last_use_cases": [
+      "is"
+    ],
+    "top_product_type": "buzdolabi",
+    "top_brand": "beko",
+    "top_payment": "lowest_monthly"
+  },
+  "musteri@nevade.com": {
+    "created_at": "2026-07-10 14:07:55",
+    "updated_at": "2026-07-10 15:01:34",
+    "query_count": 13,
+    "last_queries": [
+      {
+        "timestamp": "2026-07-10 14:45:55",
+        "query": "beko"
+      },
+      {
+        "timestamp": "2026-07-10 14:46:10",
+        "query": "50000"
+      },
+      {
+        "timestamp": "2026-07-10 14:46:48",
+        "query": "beko 50000 tl altı fırın öner"
+      },
+      {
+        "timestamp": "2026-07-10 14:46:57",
+        "query": "Daha ucuzu var mı?"
+      },
+      {
+        "timestamp": "2026-07-10 14:46:59",
+        "query": "Daha ucuzu var mı?"
+      },
+      {
+        "timestamp": "2026-07-10 14:47:32",
+        "query": "ucuz fırın öner"
+      },
+      {
+        "timestamp": "2026-07-10 14:47:59",
+        "query": "50000 tl altı buzdolabı öner"
+      },
+      {
+        "timestamp": "2026-07-10 14:48:08",
+        "query": "Daha ucuzu var mı?"
+      },
+      {
+        "timestamp": "2026-07-10 14:49:21",
+        "query": "10000 tl bilgisayar öner"
+      },
+      {
+        "timestamp": "2026-07-10 15:01:34",
+        "query": "50000 tl altı buzdolabı öner"
+      }
+    ],
+    "preferred_product_types": {
+      "buzdolabi": 7,
+      "televizyon": 1,
+      "laptop": 1
+    },
+    "preferred_brands": {
+      "beko": 3,
+      "xiaomi": 3,
+      "lg": 1
+    },
+    "preferred_payment": {
+      "lowest_monthly": 4
+    },
+    "last_budget": 50000,
+    "last_product_type": "buzdolabi",
+    "last_brand": "lg",
+    "last_intent": "product_search",
+    "last_use_cases": [
+      "is"
+    ],
+    "top_product_type": "buzdolabi",
+    "top_brand": "beko",
     "top_payment": "lowest_monthly"
   }
 }
